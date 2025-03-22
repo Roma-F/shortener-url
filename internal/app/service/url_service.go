@@ -17,12 +17,12 @@ func FetchOriginalURL(id string) (string, error) {
 	return "", errors.New("this id not found")
 }
 
-func GenerateShortURL(originalUrl string, host string) string {
-	hash := md5.Sum([]byte(originalUrl))
+func GenerateShortURL(originalURL string, host string) string {
+	hash := md5.Sum([]byte(originalURL))
 	id := hex.EncodeToString(hash[:])[:8]
-	hashUrl := `http://` + host + "/" + id
+	hashURL := `http://` + host + "/" + id
 
-	urlsMAP[id] = originalUrl
+	urlsMAP[id] = originalURL
 
-	return hashUrl
+	return hashURL
 }
