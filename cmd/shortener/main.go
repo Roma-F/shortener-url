@@ -13,7 +13,7 @@ func main() {
 	mux.HandleFunc("/{id}", handler.GetMainURL)
 
 	fmt.Println("Server is running on :8080")
-	err := http.ListenAndServe(`:8080`, mux)
+	err := http.ListenAndServe(":8080", mux)
 	fmt.Println()
 	if err != nil {
 		panic(err)
