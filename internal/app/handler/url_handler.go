@@ -43,7 +43,7 @@ func ShortenUrl(w http.ResponseWriter, r *http.Request) {
 	defer r.Body.Close()
 
 	url := string(body)
-	var shortUrl string = service.GenerateShortURL(url)
+	shortUrl := service.GenerateShortURL(url)
 
 	w.Header().Set("Content-Type", "text/plain")
 	w.Header().Set("Content-Length", strconv.Itoa(len(shortUrl)))
