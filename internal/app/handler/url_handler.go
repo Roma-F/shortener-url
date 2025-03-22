@@ -4,25 +4,10 @@ import (
 	"io"
 	"net/http"
 	"strconv"
+	"strings"
 
 	"github.com/Roma-F/shortener-url/internal/app/service"
 )
-
-func GetMainURL(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodGet {
-		w.WriteHeader(http.StatusMethodNotAllowed)
-		return
-	}
-	urlID := r.PathValue("id")
-
-	mainURL, err := service.FetchOriginalURL(urlID)
-	if err != nil {
-		w.WriteHeader(http.StatusNotFound)
-		return
-	}
-
-	http.Redirect(w, r, mainURL, http.StatusTemporaryRedirect)
-}
 
 func ShortenURL(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
@@ -30,7 +15,7 @@ func ShortenURL(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if r.Header.Get("Content-Type") != "text/plain" {
+	if !strings.HasPrefix(r.Header.Get("Content-Type"), "text/plain") {
 		http.Error(w, "Content-Type most be text/plain", http.StatusBadRequest)
 		return
 	}
@@ -49,4 +34,20 @@ func ShortenURL(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Length", strconv.Itoa(len(shortURL)))
 	w.WriteHeader(http.StatusCreated)
 	w.Write([]byte(url))
+}
+
+func GetMainURL(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		w.WriteHeader(http.StatusMethodNotAllowed)
+		return
+	}
+	urlID := r.PathValue("id")
+
+	mainURL, err := service.FetchOriginalURL(urlID)
+	if err != nil {
+		w.WriteHeader(http.StatusNotFound)
+		return
+	}
+
+	http.Redirect(w, r, mainURL, http.StatusTemporaryRedirect)
 }
