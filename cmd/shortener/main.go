@@ -9,8 +9,8 @@ import (
 
 func main() {
 	mux := http.NewServeMux()
-	mux.HandleFunc("/", handler.ShortenUrl)
-	mux.HandleFunc("/{id}", handler.GetMainUrl)
+	mux.HandleFunc("/", handler.ShortenURL)
+	mux.HandleFunc("/{id}", handler.GetMainURL)
 
 	fmt.Println("Server is running on :8080")
 	err := http.ListenAndServe(":8080", mux)
