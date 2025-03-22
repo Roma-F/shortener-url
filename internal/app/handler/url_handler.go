@@ -28,12 +28,12 @@ func ShortenURL(w http.ResponseWriter, r *http.Request) {
 	defer r.Body.Close()
 
 	url := string(body)
-	shortURL := service.GenerateShortURL(url)
+	shortURL := service.GenerateShortURL(url, r.Host)
 
 	w.Header().Set("Content-Type", "text/plain")
 	w.Header().Set("Content-Length", strconv.Itoa(len(shortURL)))
 	w.WriteHeader(http.StatusCreated)
-	w.Write([]byte(url))
+	w.Write([]byte(shortURL))
 }
 
 func GetMainURL(w http.ResponseWriter, r *http.Request) {
