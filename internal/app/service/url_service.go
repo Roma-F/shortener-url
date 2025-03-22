@@ -4,6 +4,7 @@ import (
 	"crypto/md5"
 	"encoding/hex"
 	"errors"
+	"fmt"
 )
 
 var urlsMAP = make(map[string]string)
@@ -20,7 +21,7 @@ func FetchOriginalURL(id string) (string, error) {
 func GenerateShortURL(originalURL string, host string) string {
 	hash := md5.Sum([]byte(originalURL))
 	id := hex.EncodeToString(hash[:])[:8]
-	hashURL := `http://` + host + "/" + id
+	hashURL := fmt.Sprintf("http://%s/%s", host, id)
 
 	urlsMAP[id] = originalURL
 
