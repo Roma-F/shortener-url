@@ -3,27 +3,28 @@ package service
 import (
 	"crypto/md5"
 	"encoding/hex"
-	"errors"
 	"fmt"
+
+	"github.com/Roma-F/shortener-url/internal/app/storage"
 )
 
-var urlsMAP = make(map[string]string)
-
-func FetchOriginalURL(id string) (string, error) {
-	_, ok := urlsMAP[id]
-	if ok {
-		return urlsMAP[id], nil
-	}
-
-	return "", errors.New("this id not found")
+type URLService struct {
+	repo storage.Repository
 }
 
-func GenerateShortURL(originalURL string, host string) string {
+func NewURLService(repo storage.Repository) *URLService {
+	return &URLService{repo: repo}
+}
+
+func (s *URLService) FetchOriginalURL(id string) (string, error) {
+	return s.repo.Fetch(id)
+}
+
+func (s *URLService) GenerateShortURL(originalURL string, host string) string {
 	hash := md5.Sum([]byte(originalURL))
 	id := hex.EncodeToString(hash[:])[:8]
-	hashURL := fmt.Sprintf("http://%s/%s", host, id)
 
-	urlsMAP[id] = originalURL
+	s.repo.Save(id, originalURL)
 
-	return hashURL
+	return fmt.Sprintf("http://%s/%s", host, id)
 }
