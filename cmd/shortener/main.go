@@ -7,7 +7,7 @@ import (
 
 func main() {
 	handler := router.NewRouterHandler()
-	s := server.NewServer(handler, ":8080")
+	s := server.NewServer(handler, "8080")
 
 	err := s.ListenAndServe()
 
