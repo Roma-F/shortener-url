@@ -7,7 +7,7 @@ import (
 	"strings"
 
 	"github.com/Roma-F/shortener-url/internal/app/service"
-	"github.com/go-chi/chi"
+	"github.com/go-chi/chi/v5"
 )
 
 type URLHandler struct {
