@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/Roma-F/shortener-url/internal/app/service"
+	"github.com/go-chi/chi"
 )
 
 type URLHandler struct {
@@ -18,11 +19,6 @@ func NewURLHandler(svc *service.URLService) *URLHandler {
 }
 
 func (h *URLHandler) ShortenURL(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodPost {
-		w.WriteHeader(http.StatusMethodNotAllowed)
-		return
-	}
-
 	if !strings.HasPrefix(r.Header.Get("Content-Type"), "text/plain") {
 		http.Error(w, "Content-Type most be text/plain", http.StatusBadRequest)
 		return
@@ -45,11 +41,7 @@ func (h *URLHandler) ShortenURL(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *URLHandler) GetMainURL(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodGet {
-		w.WriteHeader(http.StatusMethodNotAllowed)
-		return
-	}
-	urlID := r.PathValue("id")
+	urlID := chi.URLParam(r, "id")
 
 	mainURL, err := h.service.FetchOriginalURL(urlID)
 	if err != nil {

@@ -1,27 +1,19 @@
 package main
 
 import (
-	"fmt"
-	"net/http"
-
-	"github.com/Roma-F/shortener-url/internal/app/handler"
-	"github.com/Roma-F/shortener-url/internal/app/service"
-	"github.com/Roma-F/shortener-url/internal/app/storage"
+	"github.com/Roma-F/shortener-url/internal/app/router"
+	"github.com/Roma-F/shortener-url/internal/app/server"
 )
 
 func main() {
-	repo := storage.NewMemoryStorage()
-	URLService := service.NewURLService(repo)
-	URLHandler := handler.NewURLHandler(URLService)
+	handler := router.NewRouterHandler()
+	s := server.NewServer(handler, ":8080")
 
-	mux := http.NewServeMux()
-	mux.HandleFunc("/", URLHandler.ShortenURL)
-	mux.HandleFunc("/{id}", URLHandler.GetMainURL)
+	err := s.ListenAndServe()
 
-	fmt.Println("Server is running on :8080")
-	err := http.ListenAndServe(":8080", mux)
-	fmt.Println()
 	if err != nil {
 		panic(err)
 	}
+
+	defer s.Close()
 }
