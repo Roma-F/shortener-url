@@ -7,7 +7,6 @@ import (
 )
 
 func NewServer(handler http.Handler, cfg *config.ServerOption) *http.Server {
-
 	s := http.Server{
 		Addr:    cfg.RunAddr,
 		Handler: handler,

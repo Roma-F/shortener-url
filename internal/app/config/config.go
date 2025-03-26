@@ -16,22 +16,42 @@ func NewServerOption() *ServerOption {
 	defaultRunAddr := ":8080"
 	defaultBaseURL := "http://localhost:8080"
 
-	flag.StringVar(&defaultRunAddr, "server-port", defaultRunAddr, "address and port to run server")
-	flag.StringVar(&defaultBaseURL, "base-url", defaultBaseURL, "base address for resulting shortened URL")
+	var runAddrAlias string
+	var runAddrFlag string
+	flag.StringVar(&runAddrAlias, "a", "", "address and port to run server (alias)")
+	flag.StringVar(&runAddrFlag, "server-port", defaultRunAddr, "address and port to run server")
+
+	var baseURLAlias string
+	var baseURLFlag string
+	flag.StringVar(&baseURLAlias, "b", "", "base address for resulting shortened URL (alias)")
+	flag.StringVar(&baseURLFlag, "base-url", defaultBaseURL, "base address for resulting shortened URL")
+
 	flag.Parse()
 
-	opts := &ServerOption{
-		RunAddr:      defaultRunAddr,
-		ShortURLAddr: defaultBaseURL,
+	finalRunAddr := runAddrFlag
+	if runAddrAlias != "" {
+		finalRunAddr = runAddrAlias
+	}
+	finalBaseURL := baseURLFlag
+	if baseURLAlias != "" {
+		finalBaseURL = baseURLAlias
 	}
 
-	if v, ok := os.LookupEnv("SERVER_PORT"); ok {
-		if !strings.Contains(v, ":") {
+	opts := &ServerOption{
+		RunAddr:      finalRunAddr,
+		ShortURLAddr: finalBaseURL,
+	}
+
+	if v, ok := os.LookupEnv("SERVER_ADDRESS"); ok {
+		opts.RunAddr = v
+	} else if v, ok := os.LookupEnv("SERVER_PORT"); ok {
+		if !strings.HasPrefix(v, ":") {
 			opts.RunAddr = ":" + v
 		} else {
 			opts.RunAddr = v
 		}
 	}
+
 	if v, ok := os.LookupEnv("BASE_URL"); ok {
 		opts.ShortURLAddr = v
 	}
