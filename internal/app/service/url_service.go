@@ -28,5 +28,5 @@ func (s *URLService) GenerateShortURL(originalURL string) string {
 
 	s.repo.Save(id, originalURL)
 
-	return fmt.Sprintf("%s/%s", s.cfg.ShortUrlAddr, id)
+	return fmt.Sprintf("%s/%s", s.cfg.ShortURLAddr, id)
 }
