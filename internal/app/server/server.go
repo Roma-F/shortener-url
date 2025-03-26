@@ -1,10 +1,15 @@
 package server
 
-import "net/http"
+import (
+	"net/http"
 
-func NewServer(handler http.Handler, port string) *http.Server {
+	"github.com/Roma-F/shortener-url/internal/app/config"
+)
+
+func NewServer(handler http.Handler, cfg *config.ServerOption) *http.Server {
+
 	s := http.Server{
-		Addr:    ":" + port,
+		Addr:    cfg.RunAddr,
 		Handler: handler,
 	}
 

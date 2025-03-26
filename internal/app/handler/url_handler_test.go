@@ -1,20 +1,26 @@
 package handler
 
 import (
+	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
 
+	"github.com/Roma-F/shortener-url/internal/app/config"
 	"github.com/Roma-F/shortener-url/internal/app/service"
 	"github.com/Roma-F/shortener-url/internal/app/storage"
 	"github.com/stretchr/testify/assert"
 )
 
 func setupHandler() *URLHandler {
+	cfg := &config.ServerOption{
+		RunAddr:      ":8080",
+		ShortUrlAddr: "http://localhost:8080",
+	}
 	repo := storage.NewMemoryStorage()
-	svc := service.NewURLService(repo)
+	svc := service.NewURLService(repo, cfg)
 	return NewURLHandler(svc)
 }
 
@@ -38,7 +44,8 @@ func TestURLHandler_ShortenURL_Success(t *testing.T) {
 	assert.NoError(t, err)
 	shortURL := string(body)
 
-	expectedPrefix := "http://" + req.Host + "/"
+	expectedPrefix := "http://localhost:8080/"
+	fmt.Println(shortURL, "shortURL")
 	assert.True(t, strings.HasPrefix(shortURL, expectedPrefix), "short URL should start with %s", expectedPrefix)
 
 	parts := strings.Split(shortURL, "/")

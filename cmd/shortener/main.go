@@ -1,13 +1,16 @@
 package main
 
 import (
+	"github.com/Roma-F/shortener-url/internal/app/config"
 	"github.com/Roma-F/shortener-url/internal/app/router"
 	"github.com/Roma-F/shortener-url/internal/app/server"
 )
 
 func main() {
-	handler := router.NewRouterHandler()
-	s := server.NewServer(handler, "8080")
+	cfg := config.NewServerOption()
+	handler := router.NewRouterHandler(cfg)
+
+	s := server.NewServer(handler, cfg)
 
 	err := s.ListenAndServe()
 
