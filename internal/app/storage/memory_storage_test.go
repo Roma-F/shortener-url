@@ -7,18 +7,18 @@ import (
 )
 
 const (
-	tId         = "abc123"
+	tID         = "abc123"
 	originalURL = "http://example.com"
 )
 
 func TestMemoryStorage_Save(t *testing.T) {
 	ms := NewMemoryStorage()
 
-	err := ms.Save(tId, originalURL)
+	err := ms.Save(tID, originalURL)
 	assert.NoError(t, err)
 
 	ms.mu.RLock()
-	storedURL, ok := ms.urls[tId]
+	storedURL, ok := ms.urls[tID]
 	ms.mu.RUnlock()
 
 	assert.True(t, ok)
@@ -29,10 +29,10 @@ func TestMemoryStorage_Fetch(t *testing.T) {
 	ms := NewMemoryStorage()
 
 	ms.mu.Lock()
-	ms.urls[tId] = originalURL
+	ms.urls[tID] = originalURL
 	ms.mu.Unlock()
 
-	fetchedURL, err := ms.Fetch(tId)
+	fetchedURL, err := ms.Fetch(tID)
 	assert.NoError(t, err)
 	assert.Equal(t, originalURL, fetchedURL)
 }
