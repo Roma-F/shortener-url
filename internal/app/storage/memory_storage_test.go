@@ -1,28 +1,45 @@
-package storage_test
+package storage
 
 import (
 	"testing"
 
-	"github.com/Roma-F/shortener-url/internal/app/storage"
 	"github.com/stretchr/testify/assert"
 )
 
-func TestMemoryStorage_SaveAndFetch(t *testing.T) {
-	ms := storage.NewMemoryStorage()
+const (
+	tId         = "abc123"
+	originalURL = "http://example.com"
+)
 
-	id := "abc123"
-	originalURL := "http://example.com"
+func TestMemoryStorage_Save(t *testing.T) {
+	ms := NewMemoryStorage()
 
-	err := ms.Save(id, originalURL)
+	err := ms.Save(tId, originalURL)
 	assert.NoError(t, err)
 
-	fetchedURL, err := ms.Fetch(id)
+	ms.mu.RLock()
+	storedURL, ok := ms.urls[tId]
+	ms.mu.RUnlock()
+
+	assert.True(t, ok)
+	assert.Equal(t, originalURL, storedURL)
+}
+
+func TestMemoryStorage_Fetch(t *testing.T) {
+	ms := NewMemoryStorage()
+
+	ms.mu.Lock()
+	ms.urls[tId] = originalURL
+	ms.mu.Unlock()
+
+	fetchedURL, err := ms.Fetch(tId)
 	assert.NoError(t, err)
 	assert.Equal(t, originalURL, fetchedURL)
 }
 
 func TestMemoryStorage_FetchNonexistent(t *testing.T) {
-	ms := storage.NewMemoryStorage()
+	ms := NewMemoryStorage()
+
 	fetchedURL, err := ms.Fetch("nonexistent")
 	assert.Error(t, err)
 	assert.Empty(t, fetchedURL)

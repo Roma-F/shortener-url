@@ -6,15 +6,19 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/Roma-F/shortener-url/internal/app/service"
 	"github.com/go-chi/chi/v5"
 )
 
-type URLHandler struct {
-	service *service.URLService
+type URLShortener interface {
+	FetchOriginalURL(id string) (string, error)
+	GenerateShortURL(originalURL string) string
 }
 
-func NewURLHandler(svc *service.URLService) *URLHandler {
+type URLHandler struct {
+	service URLShortener
+}
+
+func NewURLHandler(svc URLShortener) *URLHandler {
 	return &URLHandler{service: svc}
 }
 

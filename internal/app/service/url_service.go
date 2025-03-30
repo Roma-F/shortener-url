@@ -6,15 +6,19 @@ import (
 	"fmt"
 
 	"github.com/Roma-F/shortener-url/internal/app/config"
-	"github.com/Roma-F/shortener-url/internal/app/storage"
 )
 
+type Repository interface {
+	Save(id string, url string) error
+	Fetch(id string) (string, error)
+}
+
 type URLService struct {
-	repo storage.Repository
+	repo Repository
 	cfg  *config.ServerOption
 }
 
-func NewURLService(repo storage.Repository, cfg *config.ServerOption) *URLService {
+func NewURLService(repo Repository, cfg *config.ServerOption) *URLService {
 	return &URLService{repo: repo, cfg: cfg}
 }
 

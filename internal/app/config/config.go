@@ -2,9 +2,15 @@ package config
 
 import (
 	"flag"
-	"fmt"
-	"os"
+	"log"
 	"strings"
+
+	"github.com/caarlos0/env/v6"
+)
+
+const (
+	defaultRunAddr = ":8080"
+	defaultBaseURL = "http://localhost:8080"
 )
 
 type ServerOption struct {
@@ -12,51 +18,72 @@ type ServerOption struct {
 	ShortURLAddr string
 }
 
-func NewServerOption() *ServerOption {
-	defaultRunAddr := ":8080"
-	defaultBaseURL := "http://localhost:8080"
+type EnvConfig struct {
+	ServerAddress string `env:"SERVER_ADDRESS"`
+	ServerPort    string `env:"SERVER_PORT"`
+	BaseURL       string `env:"BASE_URL"`
+}
 
-	var runAddrAlias string
-	var runAddrFlag string
-	flag.StringVar(&runAddrAlias, "a", "", "address and port to run server (alias)")
-	flag.StringVar(&runAddrFlag, "server-port", defaultRunAddr, "address and port to run server")
+type flagConfig struct {
+	runAddrAlias string
+	runAddr      string
+	baseURLAlias string
+	baseURL      string
+}
 
-	var baseURLAlias string
-	var baseURLFlag string
-	flag.StringVar(&baseURLAlias, "b", "", "base address for resulting shortened URL (alias)")
-	flag.StringVar(&baseURLFlag, "base-url", defaultBaseURL, "base address for resulting shortened URL")
+func parseFlags() flagConfig {
+	var fc flagConfig
+
+	flag.StringVar(&fc.runAddrAlias, "a", "", "address and port to run server (alias)")
+	flag.StringVar(&fc.runAddr, "server-port", defaultRunAddr, "address and port to run server")
+
+	flag.StringVar(&fc.baseURLAlias, "b", "", "base address for resulting shortened URL (alias)")
+	flag.StringVar(&fc.baseURL, "base-url", defaultBaseURL, "base address for resulting shortened URL")
 
 	flag.Parse()
+	return fc
+}
 
-	finalRunAddr := runAddrFlag
-	if runAddrAlias != "" {
-		finalRunAddr = runAddrAlias
+func parseEnv() EnvConfig {
+	var ec EnvConfig
+	if err := env.Parse(&ec); err != nil {
+		log.Fatal("failed to parse environment variables: ", err)
 	}
-	finalBaseURL := baseURLFlag
-	if baseURLAlias != "" {
-		finalBaseURL = baseURLAlias
-	}
+	return ec
+}
 
-	opts := &ServerOption{
-		RunAddr:      finalRunAddr,
-		ShortURLAddr: finalBaseURL,
-	}
+func NewServerOption() *ServerOption {
+	fc := parseFlags()
+	ec := parseEnv()
 
-	if v, ok := os.LookupEnv("SERVER_ADDRESS"); ok {
-		opts.RunAddr = v
-	} else if v, ok := os.LookupEnv("SERVER_PORT"); ok {
-		if !strings.HasPrefix(v, ":") {
-			opts.RunAddr = ":" + v
+	runAddr := fc.runAddr
+	if fc.runAddrAlias != "" {
+		runAddr = fc.runAddrAlias
+	}
+	if ec.ServerAddress != "" {
+		runAddr = ec.ServerAddress
+	} else if ec.ServerPort != "" {
+		if !strings.HasPrefix(ec.ServerPort, ":") {
+			runAddr = ":" + ec.ServerPort
 		} else {
-			opts.RunAddr = v
+			runAddr = ec.ServerPort
 		}
 	}
 
-	if v, ok := os.LookupEnv("BASE_URL"); ok {
-		opts.ShortURLAddr = v
+	baseURL := fc.baseURL
+	if fc.baseURLAlias != "" {
+		baseURL = fc.baseURLAlias
+	}
+	if ec.BaseURL != "" {
+		baseURL = ec.BaseURL
 	}
 
-	fmt.Println("Server will run on", opts.RunAddr)
-	fmt.Println("Base URL is", opts.ShortURLAddr)
+	opts := &ServerOption{
+		RunAddr:      runAddr,
+		ShortURLAddr: baseURL,
+	}
+
+	log.Printf("Server will run on %s", opts.RunAddr)
+	log.Printf("Base URL is %s", opts.ShortURLAddr)
 	return opts
 }
