@@ -16,21 +16,32 @@ func NewMemoryStorage() *MemoryStorage {
 
 func (m *MemoryStorage) Save(id string, url string) error {
 	m.mu.Lock()
+	defer m.mu.Unlock()
 	m.urls[id] = url
-	m.mu.Unlock()
 
 	return nil
-
 }
 
 func (m *MemoryStorage) Fetch(id string) (string, error) {
 	m.mu.RLock()
+	defer m.mu.RUnlock()
 	value, ok := m.urls[id]
-	m.mu.RUnlock()
 
 	if !ok {
 		return "", errors.New("this id not found")
 	}
 
 	return value, nil
+}
+
+func (m *MemoryStorage) FindByURL(url string) (string, bool) {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+
+	for id, storedURL := range m.urls {
+		if storedURL == url {
+			return id, true
+		}
+	}
+	return "", false
 }

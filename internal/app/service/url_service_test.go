@@ -22,7 +22,8 @@ func TestURLService_FetchOriginalURL(t *testing.T) {
 	svc := setupService()
 
 	originalURL := "https://example.com"
-	shortURL := svc.GenerateShortURL(originalURL)
+	shortURL, _ := svc.GenerateShortURL(originalURL)
+
 	parts := strings.Split(shortURL, "/")
 	id := parts[len(parts)-1]
 
@@ -39,7 +40,7 @@ func TestURLService_GenerateShortURL(t *testing.T) {
 
 	originalURL := "https://example.com"
 	host := "localhost:8080"
-	shortURL := svc.GenerateShortURL(originalURL)
+	shortURL, _ := svc.GenerateShortURL(originalURL)
 
 	expectedPrefix := "http://" + host + "/"
 	assert.True(t, strings.HasPrefix(shortURL, expectedPrefix), "short URL should start with %s", expectedPrefix)

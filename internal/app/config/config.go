@@ -2,7 +2,7 @@ package config
 
 import (
 	"flag"
-	"log"
+	"fmt"
 	"strings"
 
 	"github.com/caarlos0/env/v6"
@@ -16,12 +16,14 @@ const (
 type ServerOption struct {
 	RunAddr      string
 	ShortURLAddr string
+	MaxAttempts  int
 }
 
 type EnvConfig struct {
 	ServerAddress string `env:"SERVER_ADDRESS"`
 	ServerPort    string `env:"SERVER_PORT"`
 	BaseURL       string `env:"BASE_URL"`
+	MaxAttempts   int    `env:"MAX_ATTEMPTS" envDefault:"10"`
 }
 
 type flagConfig struct {
@@ -44,17 +46,20 @@ func parseFlags() flagConfig {
 	return fc
 }
 
-func parseEnv() EnvConfig {
+func parseEnv() (EnvConfig, error) {
 	var ec EnvConfig
 	if err := env.Parse(&ec); err != nil {
-		log.Fatal("failed to parse environment variables: ", err)
+		return EnvConfig{}, fmt.Errorf("failed to parse environment variables: %w", err)
 	}
-	return ec
+	return ec, nil
 }
 
-func NewServerOption() *ServerOption {
+func NewServerOption() (*ServerOption, error) {
 	fc := parseFlags()
-	ec := parseEnv()
+	ec, err := parseEnv()
+	if err != nil {
+		return nil, err
+	}
 
 	runAddr := fc.runAddr
 	if fc.runAddrAlias != "" {
@@ -81,9 +86,8 @@ func NewServerOption() *ServerOption {
 	opts := &ServerOption{
 		RunAddr:      runAddr,
 		ShortURLAddr: baseURL,
+		MaxAttempts:  ec.MaxAttempts,
 	}
 
-	log.Printf("Server will run on %s", opts.RunAddr)
-	log.Printf("Base URL is %s", opts.ShortURLAddr)
-	return opts
+	return opts, nil
 }

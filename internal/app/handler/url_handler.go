@@ -11,7 +11,7 @@ import (
 
 type URLShortener interface {
 	FetchOriginalURL(id string) (string, error)
-	GenerateShortURL(originalURL string) string
+	GenerateShortURL(originalURL string) (string, error)
 }
 
 type URLHandler struct {
@@ -36,7 +36,11 @@ func (h *URLHandler) ShortenURL(w http.ResponseWriter, r *http.Request) {
 	defer r.Body.Close()
 
 	url := string(body)
-	shortURL := h.service.GenerateShortURL(url)
+	shortURL, err := h.service.GenerateShortURL(url)
+	if err != nil {
+		w.WriteHeader(http.StatusNotFound)
+		return
+	}
 
 	w.Header().Set("Content-Type", "text/plain")
 	w.Header().Set("Content-Length", strconv.Itoa(len(shortURL)))
