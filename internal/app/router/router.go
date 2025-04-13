@@ -4,9 +4,9 @@ import (
 	"net/http"
 
 	"github.com/Roma-F/shortener-url/internal/app/config"
-	"github.com/Roma-F/shortener-url/internal/app/handler"
 	"github.com/Roma-F/shortener-url/internal/app/service"
 	"github.com/Roma-F/shortener-url/internal/app/storage"
+	"github.com/Roma-F/shortener-url/internal/app/transport/handler"
 	"github.com/go-chi/chi/v5"
 )
 
