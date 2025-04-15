@@ -66,7 +66,7 @@ func (h *URLHandler) ShortenURLJSON(w http.ResponseWriter, r *http.Request) {
 	}
 	defer r.Body.Close()
 
-	shortURL, err := h.service.GenerateShortURL(req.Url)
+	shortURL, err := h.service.GenerateShortURL(req.URL)
 	if err != nil {
 		w.WriteHeader(http.StatusNotFound)
 		return
