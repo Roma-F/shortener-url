@@ -17,8 +17,14 @@ func NewRouterHandler(cfg *config.ServerOption) http.Handler {
 	URLService := service.NewURLService(repo, cfg)
 	URLHandler := handler.NewURLHandler(URLService)
 
-	r.Post("/", URLHandler.ShortenURL)
-	r.Get("/{id}", URLHandler.GetMainURL)
+	r.Group(func(r chi.Router) {
+		r.Post("/", URLHandler.ShortenURLTextPlain)
+		r.Get("/{id}", URLHandler.GetMainURL)
+	})
+
+	r.Route("/api", func(r chi.Router) {
+		r.Post("/shorten", URLHandler.ShortenURLJSON)
+	})
 
 	return r
 }

@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
@@ -9,6 +10,7 @@ import (
 	"testing"
 
 	"github.com/Roma-F/shortener-url/internal/app/config"
+	"github.com/Roma-F/shortener-url/internal/app/models"
 	"github.com/Roma-F/shortener-url/internal/app/service"
 	"github.com/Roma-F/shortener-url/internal/app/storage"
 	"github.com/stretchr/testify/assert"
@@ -24,7 +26,7 @@ func setupHandler() *URLHandler {
 	return NewURLHandler(svc)
 }
 
-func TestURLHandler_ShortenURL_Success(t *testing.T) {
+func TestURLHandler_ShortenURLTextPlain_Success(t *testing.T) {
 	handler := setupHandler()
 
 	originalURL := "https://example.com"
@@ -138,4 +140,31 @@ func TestURLHandler_GetMainURL_Success(t *testing.T) {
 	handler.GetMainURL(rrGet, reqGet)
 	respGet := rrGet.Result()
 	defer respGet.Body.Close()
+}
+
+func TestURLHandler_ShortenURLJSON_Success(t *testing.T) {
+	handler := setupHandler()
+
+	payload := `{"url": "https://example.com"}`
+	req := httptest.NewRequest(http.MethodPost, "/api/shorten", strings.NewReader(payload))
+	req.Header.Set("Content-Type", "application/json")
+	req.Host = "example.com"
+
+	rr := httptest.NewRecorder()
+	handler.Shorten(rr, req)
+
+	resp := rr.Result()
+	defer resp.Body.Close()
+
+	assert.Equal(t, http.StatusCreated, resp.StatusCode)
+
+	body, err := io.ReadAll(resp.Body)
+	assert.NoError(t, err)
+
+	var jsonResp models.ShortenURLResp
+	err = json.Unmarshal(body, &jsonResp)
+	assert.NoError(t, err)
+
+	expectedPrefix := "http://localhost:8080/"
+	assert.True(t, strings.HasPrefix(jsonResp.Result, expectedPrefix), "short URL should start with %s", expectedPrefix)
 }
