@@ -21,7 +21,8 @@ func main() {
 
 	r := router.NewRouterHandler(cfg)
 
-	loggerRouter := middleware.WithLogging(r, logger.Sugar)
+	gzipRouter := middleware.WithGzip(r)
+	loggerRouter := middleware.WithLogging(gzipRouter, logger.Sugar)
 
 	s := server.NewServer(loggerRouter, cfg)
 
