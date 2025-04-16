@@ -4,8 +4,10 @@ import (
 	"log"
 
 	"github.com/Roma-F/shortener-url/internal/app/config"
+	"github.com/Roma-F/shortener-url/internal/app/logger"
 	"github.com/Roma-F/shortener-url/internal/app/router"
 	"github.com/Roma-F/shortener-url/internal/app/server"
+	"github.com/Roma-F/shortener-url/internal/app/transport/middleware"
 )
 
 func main() {
@@ -13,12 +15,19 @@ func main() {
 	if err != nil {
 		log.Fatalf("Failed to load server configuration: %v", err)
 	}
-	handler := router.NewRouterHandler(cfg)
 
-	s := server.NewServer(handler, cfg)
+	logger.Initialize("info")
+	defer logger.Sugar.Sync()
 
-	log.Printf("Server will run on %s", cfg.RunAddr)
-	log.Printf("Base URL is %s", cfg.ShortURLAddr)
+	r := router.NewRouterHandler(cfg)
+
+	gzipRouter := middleware.WithGzip(r)
+	loggerRouter := middleware.WithLogging(gzipRouter, logger.Sugar)
+
+	s := server.NewServer(loggerRouter, cfg)
+
+	logger.Sugar.Infof("Server will run on %s", cfg.RunAddr)
+	logger.Sugar.Infof("Base URL is %s", cfg.ShortURLAddr)
 
 	err = s.ListenAndServe()
 
