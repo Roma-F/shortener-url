@@ -28,6 +28,7 @@ func main() {
 
 	logger.Sugar.Infof("Server will run on %s", cfg.RunAddr)
 	logger.Sugar.Infof("Base URL is %s", cfg.ShortURLAddr)
+	logger.Sugar.Infof("File storage path: %s", cfg.FSPath)
 
 	err = s.ListenAndServe()
 

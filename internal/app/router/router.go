@@ -13,7 +13,7 @@ import (
 func NewRouterHandler(cfg *config.ServerOption) http.Handler {
 	r := chi.NewRouter()
 
-	repo := storage.NewMemoryStorage()
+	repo := storage.NewMemoryStorage(cfg.FSPath)
 	URLService := service.NewURLService(repo, cfg)
 	URLHandler := handler.NewURLHandler(URLService)
 

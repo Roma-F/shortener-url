@@ -9,28 +9,32 @@ import (
 )
 
 const (
-	defaultRunAddr = ":8080"
-	defaultBaseURL = "http://localhost:8080"
+	defaultRunAddr         = ":8080"
+	defaultBaseURL         = "http://localhost:8080"
+	defaultFileStoragePath = "storage.json"
 )
 
 type ServerOption struct {
 	RunAddr      string
 	ShortURLAddr string
 	MaxAttempts  int
+	FSPath       string
 }
 
 type EnvConfig struct {
-	ServerAddress string `env:"SERVER_ADDRESS"`
-	ServerPort    string `env:"SERVER_PORT"`
-	BaseURL       string `env:"BASE_URL"`
-	MaxAttempts   int    `env:"MAX_ATTEMPTS" envDefault:"10"`
+	ServerAddress   string `env:"SERVER_ADDRESS"`
+	ServerPort      string `env:"SERVER_PORT"`
+	BaseURL         string `env:"BASE_URL"`
+	MaxAttempts     int    `env:"MAX_ATTEMPTS" envDefault:"10"`
+	FileStoragePath string `env:"FILE_STORAGE_PATH"`
 }
 
 type flagConfig struct {
-	runAddrAlias string
-	runAddr      string
-	baseURLAlias string
-	baseURL      string
+	runAddrAlias    string
+	runAddr         string
+	baseURLAlias    string
+	baseURL         string
+	fileStoragePath string
 }
 
 func parseFlags() flagConfig {
@@ -41,6 +45,9 @@ func parseFlags() flagConfig {
 
 	flag.StringVar(&fc.baseURLAlias, "b", "", "base address for resulting shortened URL (alias)")
 	flag.StringVar(&fc.baseURL, "base-url", defaultBaseURL, "base address for resulting shortened URL")
+
+	flag.StringVar(&fc.fileStoragePath, "f", "", "file storage path")
+	flag.StringVar(&fc.fileStoragePath, "file-storage", defaultFileStoragePath, "file storage path")
 
 	flag.Parse()
 	return fc
@@ -75,6 +82,14 @@ func NewServerOption() (*ServerOption, error) {
 		}
 	}
 
+	fsPath := defaultFileStoragePath
+	if fc.fileStoragePath != defaultFileStoragePath {
+		fsPath = fc.fileStoragePath
+	}
+	if ec.FileStoragePath != "" {
+		fsPath = ec.FileStoragePath
+	}
+
 	baseURL := fc.baseURL
 	if fc.baseURLAlias != "" {
 		baseURL = fc.baseURLAlias
@@ -87,6 +102,7 @@ func NewServerOption() (*ServerOption, error) {
 		RunAddr:      runAddr,
 		ShortURLAddr: baseURL,
 		MaxAttempts:  ec.MaxAttempts,
+		FSPath:       fsPath,
 	}
 
 	return opts, nil
