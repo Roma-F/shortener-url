@@ -27,8 +27,9 @@ func NewURLHandler(svc URLShortener) *URLHandler {
 }
 
 func (h *URLHandler) ShortenURLTextPlain(w http.ResponseWriter, r *http.Request) {
-	if !strings.HasPrefix(r.Header.Get("Content-Type"), "text/plain") {
-		http.Error(w, "Content-Type most be text/plain", http.StatusBadRequest)
+	contentType := r.Header.Get("Content-Type")
+	if contentType != "" && !strings.HasPrefix(contentType, "text/plain") {
+		http.Error(w, "Content-Type must be text/plain", http.StatusBadRequest)
 		return
 	}
 
@@ -53,8 +54,9 @@ func (h *URLHandler) ShortenURLTextPlain(w http.ResponseWriter, r *http.Request)
 }
 
 func (h *URLHandler) ShortenURLJSON(w http.ResponseWriter, r *http.Request) {
-	if !strings.HasPrefix(r.Header.Get("Content-Type"), "application/json") {
-		http.Error(w, "Content-Type most be application/json", http.StatusBadRequest)
+	contentType := r.Header.Get("Content-Type")
+	if contentType != "" && !strings.HasPrefix(contentType, "application/json") {
+		http.Error(w, "Content-Type must be application/json", http.StatusBadRequest)
 		return
 	}
 

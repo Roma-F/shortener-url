@@ -12,26 +12,79 @@ var compressibleTypes = []string{
 	"text/html",
 }
 
+var gzipTypes = []string{
+	"application/gzip",
+	"application/x-gzip",
+}
+
+type gzipReader struct {
+	r  io.ReadCloser
+	gr *gzip.Reader
+}
+
+func newGzipReader(r io.ReadCloser) (*gzipReader, error) {
+	gr, err := gzip.NewReader(r)
+	if err != nil {
+		return nil, err
+	}
+
+	return &gzipReader{
+		r:  r,
+		gr: gr,
+	}, nil
+}
+
+func (gz *gzipReader) Read(p []byte) (n int, err error) {
+	return gz.gr.Read(p)
+}
+
+func (gz *gzipReader) Close() error {
+	if err := gz.gr.Close(); err != nil {
+		return err
+	}
+	return gz.r.Close()
+}
+
 func WithGzip(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		acceptEncoding := r.Header.Get("Accept-Encoding")
-		supportsGzip := strings.Contains(acceptEncoding, "gzip")
+		var isGzipped bool
 
 		contentEncoding := r.Header.Get("Content-Encoding")
-		isGzipped := strings.Contains(contentEncoding, "gzip")
+		isGzipped = strings.Contains(contentEncoding, "gzip")
 
-		if isGzipped {
-			gzipReader, err := gzip.NewReader(r.Body)
+		if !isGzipped {
+			contentType := r.Header.Get("Content-Type")
+			for _, gzipType := range gzipTypes {
+				if strings.Contains(contentType, gzipType) {
+					isGzipped = true
+					break
+				}
+			}
+		}
+
+		if isGzipped && r.Body != nil {
+			gzReader, err := newGzipReader(r.Body)
 			if err != nil {
 				http.Error(w, "Failed to read gzipped request body", http.StatusBadRequest)
 				return
 			}
-			defer gzipReader.Close()
 
-			r.Body = io.NopCloser(gzipReader)
+			r.Body = gzReader
+
+			contentType := r.Header.Get("Content-Type")
+			for _, gzipType := range gzipTypes {
+				if strings.Contains(contentType, gzipType) {
+					r.Header.Set("Content-Type", "text/plain")
+					break
+				}
+			}
+
 			r.Header.Del("Content-Encoding")
 			r.Header.Del("Content-Length")
 		}
+
+		acceptEncoding := r.Header.Get("Accept-Encoding")
+		supportsGzip := strings.Contains(acceptEncoding, "gzip")
 
 		if supportsGzip {
 			gzipWriter := NewGzipResponseWriter(w)
