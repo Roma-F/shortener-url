@@ -14,7 +14,7 @@ func setupService() *URLService {
 		RunAddr:      ":8080",
 		ShortURLAddr: "http://localhost:8080",
 	}
-	repo := storage.NewMemoryStorage()
+	repo := storage.NewMemoryStorage("")
 	return NewURLService(repo, cfg)
 }
 
