@@ -57,7 +57,12 @@ func (m *MemoryStorage) LoadFromFile() error {
 	if err != nil {
 		return fmt.Errorf("error opening file: %w", err)
 	}
-	defer file.Close()
+
+	defer func() {
+		if err := file.Close(); err != nil {
+			fmt.Printf("Warning: Failed to close file during load: %v\n", err)
+		}
+	}()
 
 	scanner := bufio.NewScanner(file)
 	maxID := 0
@@ -104,6 +109,14 @@ func (m *MemoryStorage) SaveToFile() error {
 		return fmt.Errorf("error creating temp file: %w", err)
 	}
 
+	defer func() {
+		if file != nil {
+			if err := file.Close(); err != nil {
+				fmt.Printf("Warning: Failed to close temporary file: %v\n", err)
+			}
+		}
+	}()
+
 	for _, record := range m.records {
 		data, err := json.Marshal(record)
 		if err != nil {
@@ -117,7 +130,6 @@ func (m *MemoryStorage) SaveToFile() error {
 		if _, err := file.Write([]byte("\n")); err != nil {
 			return fmt.Errorf("error writing newline to file: %w", err)
 		}
-		defer file.Close()
 	}
 
 	if err := file.Close(); err != nil {

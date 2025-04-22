@@ -2,6 +2,7 @@ package middleware
 
 import (
 	"compress/gzip"
+	"fmt"
 	"io"
 	"net/http"
 	"strings"
@@ -88,7 +89,11 @@ func WithGzip(next http.Handler) http.Handler {
 
 		if supportsGzip {
 			gzipWriter := NewGzipResponseWriter(w)
-			defer gzipWriter.Close()
+			defer func() {
+				if err := gzipWriter.Close(); err != nil {
+					fmt.Printf("Error closing gzip writer: %v\n", err)
+				}
+			}()
 
 			next.ServeHTTP(gzipWriter, r)
 		} else {

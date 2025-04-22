@@ -38,7 +38,12 @@ func (h *URLHandler) ShortenURLTextPlain(w http.ResponseWriter, r *http.Request)
 		http.Error(w, "Error reading request body", http.StatusInternalServerError)
 		return
 	}
-	defer r.Body.Close()
+
+	defer func() {
+		if err := r.Body.Close(); err != nil {
+			logger.Sugar.Errorw("Failed to close request body", "error", err)
+		}
+	}()
 
 	url := string(body)
 	shortURL, err := h.service.GenerateShortURL(url)
@@ -66,7 +71,12 @@ func (h *URLHandler) ShortenURLJSON(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Invalid JSON payload", http.StatusBadRequest)
 		return
 	}
-	defer r.Body.Close()
+
+	defer func() {
+		if err := r.Body.Close(); err != nil {
+			logger.Sugar.Errorw("Failed to close request body", "error", err)
+		}
+	}()
 
 	shortURL, err := h.service.GenerateShortURL(req.URL)
 	if err != nil {

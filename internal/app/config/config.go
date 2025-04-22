@@ -19,6 +19,23 @@ type ServerOption struct {
 	ShortURLAddr string
 	MaxAttempts  int
 	FSPath       string
+	LoggingLevel string
+}
+
+func (o *ServerOption) String() string {
+	return fmt.Sprintf(
+		"Server Configuration:\n"+
+			"  Run Address: %s\n"+
+			"  Short URL Address: %s\n"+
+			"  File Storage Path: %s\n"+
+			"  Max Attempts: %d\n"+
+			"  Logging Level: %s",
+		o.RunAddr,
+		o.ShortURLAddr,
+		o.FSPath,
+		o.MaxAttempts,
+		o.LoggingLevel,
+	)
 }
 
 type EnvConfig struct {
@@ -27,6 +44,7 @@ type EnvConfig struct {
 	BaseURL         string `env:"BASE_URL"`
 	MaxAttempts     int    `env:"MAX_ATTEMPTS" envDefault:"10"`
 	FileStoragePath string `env:"FILE_STORAGE_PATH"`
+	LoggingLevel    string `env:"LOGGING_LEVEL" envDefault:"info"`
 }
 
 type flagConfig struct {
@@ -98,11 +116,14 @@ func NewServerOption() (*ServerOption, error) {
 		baseURL = ec.BaseURL
 	}
 
+	loggingLevel := ec.LoggingLevel
+
 	opts := &ServerOption{
 		RunAddr:      runAddr,
 		ShortURLAddr: baseURL,
 		MaxAttempts:  ec.MaxAttempts,
 		FSPath:       fsPath,
+		LoggingLevel: loggingLevel,
 	}
 
 	return opts, nil

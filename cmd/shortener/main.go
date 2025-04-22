@@ -16,8 +16,9 @@ func main() {
 		log.Fatalf("Failed to load server configuration: %v", err)
 	}
 
-	logger.Initialize("info")
-	defer logger.Sugar.Sync()
+	logger.Initialize(cfg.LoggingLevel)
+
+	logger.Sugar.Infof("%s", cfg)
 
 	r := router.NewRouterHandler(cfg)
 
@@ -26,15 +27,21 @@ func main() {
 
 	s := server.NewServer(loggerRouter, cfg)
 
-	logger.Sugar.Infof("Server will run on %s", cfg.RunAddr)
-	logger.Sugar.Infof("Base URL is %s", cfg.ShortURLAddr)
-	logger.Sugar.Infof("File storage path: %s", cfg.FSPath)
+	defer func() {
+		logger.Sugar.Info("Server stopping...")
 
-	err = s.ListenAndServe()
+		if err := s.Close(); err != nil {
+			logger.Sugar.Errorw("Failed to close server", "error", err)
+		}
 
-	if err != nil {
-		panic(err)
+		if err := logger.Sugar.Sync(); err != nil {
+			log.Printf("Failed to sync logger buffers: %v", err)
+		}
+
+		logger.Sugar.Info("Server stopped")
+	}()
+
+	if err := s.ListenAndServe(); err != nil {
+		logger.Sugar.Errorw("Server error", "error", err)
 	}
-
-	defer s.Close()
 }
