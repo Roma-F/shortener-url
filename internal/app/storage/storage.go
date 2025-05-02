@@ -2,7 +2,6 @@ package storage
 
 import (
 	"bufio"
-	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -12,12 +11,7 @@ import (
 	"sync"
 
 	"github.com/Roma-F/shortener-url/internal/app/logger"
-	"github.com/jmoiron/sqlx"
 )
-
-type PostgresStorage struct {
-	db *sqlx.DB
-}
 
 type URLRecord struct {
 	UUID        string `json:"uuid"`
@@ -44,19 +38,6 @@ func NewMemoryStorage(filePath string) *MemoryStorage {
 	}
 
 	return ms
-}
-
-func NewPostgresStorage(dsn string) (*PostgresStorage, error) {
-	if dsn == "" {
-		return nil, fmt.Errorf("database DSN is empty")
-	}
-
-	db, err := sqlx.Connect("postgres", dsn)
-	if err != nil {
-		return nil, fmt.Errorf("failed to connect to database: %w", err)
-	}
-
-	return &PostgresStorage{db: db}, nil
 }
 
 func (m *MemoryStorage) LoadFromFile() error {
@@ -204,8 +185,4 @@ func (m *MemoryStorage) FindByURL(originalURL string) (string, bool) {
 		}
 	}
 	return "", false
-}
-
-func (p *PostgresStorage) Ping(ctx context.Context) error {
-	return p.db.PingContext(ctx)
 }
