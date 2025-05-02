@@ -9,6 +9,8 @@ import (
 	"path/filepath"
 	"strconv"
 	"sync"
+
+	"github.com/Roma-F/shortener-url/internal/app/logger"
 )
 
 type URLRecord struct {
@@ -32,7 +34,7 @@ func NewMemoryStorage(filePath string) *MemoryStorage {
 	}
 
 	if err := ms.LoadFromFile(); err != nil {
-		fmt.Printf("Info: Could not load data from file: %v\n", err)
+		logger.Sugar.Infow("Could not load data from file", "error", err)
 	}
 
 	return ms
@@ -60,7 +62,7 @@ func (m *MemoryStorage) LoadFromFile() error {
 
 	defer func() {
 		if err := file.Close(); err != nil {
-			fmt.Printf("Warning: Failed to close file during load: %v\n", err)
+			logger.Sugar.Infow("Failed to close file during load", "error", err)
 		}
 	}()
 
@@ -112,7 +114,7 @@ func (m *MemoryStorage) SaveToFile() error {
 	defer func() {
 		if file != nil {
 			if err := file.Close(); err != nil {
-				fmt.Printf("Warning: Failed to close temporary file: %v\n", err)
+				logger.Sugar.Infow("Failed to close temporary file", "error", err)
 			}
 		}
 	}()

@@ -2,7 +2,6 @@ package handler
 
 import (
 	"encoding/json"
-	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -10,6 +9,7 @@ import (
 	"testing"
 
 	"github.com/Roma-F/shortener-url/internal/app/config"
+	"github.com/Roma-F/shortener-url/internal/app/logger"
 	"github.com/Roma-F/shortener-url/internal/app/models"
 	"github.com/Roma-F/shortener-url/internal/app/service"
 	"github.com/Roma-F/shortener-url/internal/app/storage"
@@ -47,7 +47,7 @@ func TestURLHandler_ShortenURLTextPlain_Success(t *testing.T) {
 	shortURL := string(body)
 
 	expectedPrefix := "http://localhost:8080/"
-	fmt.Println(shortURL, "shortURL")
+	logger.Sugar.Infow("Generated short URL", "shortURL", shortURL)
 	assert.True(t, strings.HasPrefix(shortURL, expectedPrefix), "short URL should start with %s", expectedPrefix)
 
 	parts := strings.Split(shortURL, "/")

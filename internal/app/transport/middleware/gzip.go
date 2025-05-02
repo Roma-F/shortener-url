@@ -2,10 +2,11 @@ package middleware
 
 import (
 	"compress/gzip"
-	"fmt"
 	"io"
 	"net/http"
 	"strings"
+
+	"github.com/Roma-F/shortener-url/internal/app/logger"
 )
 
 var compressibleTypes = []string{
@@ -91,7 +92,7 @@ func WithGzip(next http.Handler) http.Handler {
 			gzipWriter := NewGzipResponseWriter(w)
 			defer func() {
 				if err := gzipWriter.Close(); err != nil {
-					fmt.Printf("Error closing gzip writer: %v\n", err)
+					logger.Sugar.Infow("Error closing gzip writer", "error", err)
 				}
 			}()
 
