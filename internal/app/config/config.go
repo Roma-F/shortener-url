@@ -20,6 +20,7 @@ type ServerOption struct {
 	MaxAttempts  int
 	FSPath       string
 	LoggingLevel string
+	DatabaseDSN  string
 }
 
 func (o *ServerOption) String() string {
@@ -29,12 +30,14 @@ func (o *ServerOption) String() string {
 			"  Short URL Address: %s\n"+
 			"  File Storage Path: %s\n"+
 			"  Max Attempts: %d\n"+
-			"  Logging Level: %s",
+			"  Logging Level: %s\n"+
+			"  Database DSN: %s",
 		o.RunAddr,
 		o.ShortURLAddr,
 		o.FSPath,
 		o.MaxAttempts,
 		o.LoggingLevel,
+		o.DatabaseDSN,
 	)
 }
 
@@ -45,6 +48,15 @@ type EnvConfig struct {
 	MaxAttempts     int    `env:"MAX_ATTEMPTS" envDefault:"10"`
 	FileStoragePath string `env:"FILE_STORAGE_PATH"`
 	LoggingLevel    string `env:"LOGGING_LEVEL" envDefault:"info"`
+	DatabaseDSN     string `env:"DATABASE_DSN"`
+}
+
+type DBParams struct {
+	Host     string
+	User     string
+	Password string
+	Dbname   string
+	SSLmode  bool
 }
 
 type flagConfig struct {
@@ -53,6 +65,7 @@ type flagConfig struct {
 	baseURLAlias    string
 	baseURL         string
 	fileStoragePath string
+	databaseDSN     string
 }
 
 func parseFlags() flagConfig {
@@ -66,6 +79,8 @@ func parseFlags() flagConfig {
 
 	flag.StringVar(&fc.fileStoragePath, "f", "", "file storage path")
 	flag.StringVar(&fc.fileStoragePath, "file-storage", defaultFileStoragePath, "file storage path")
+
+	flag.StringVar(&fc.databaseDSN, "d", "", "database connection string")
 
 	flag.Parse()
 	return fc
@@ -124,6 +139,11 @@ func NewServerOption() (*ServerOption, error) {
 		MaxAttempts:  ec.MaxAttempts,
 		FSPath:       fsPath,
 		LoggingLevel: loggingLevel,
+		DatabaseDSN:  fc.databaseDSN,
+	}
+
+	if ec.DatabaseDSN != "" {
+		opts.DatabaseDSN = ec.DatabaseDSN
 	}
 
 	return opts, nil
