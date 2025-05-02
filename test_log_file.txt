@@ -1,0 +1,10 @@
+=== RUN   TestIteration6
+    iteration6_test.go:31: 
+        	Error Trace:	/Users/romanfashutdinov/yandex/shortener-url/iteration6_test.go:31
+        	            				/Users/romanfashutdinov/yandex/shortener-url/suite.go:132
+        	            				/Users/romanfashutdinov/yandex/shortener-url/main_test.go:44
+        	Error:      	Should NOT be empty, but was 
+        	Test:       	TestIteration6
+        	Messages:   	-file-storage-path non-empty flag required
+--- FAIL: TestIteration6 (0.00s)
+FAIL

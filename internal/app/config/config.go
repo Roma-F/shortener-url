@@ -9,28 +9,50 @@ import (
 )
 
 const (
-	defaultRunAddr = ":8080"
-	defaultBaseURL = "http://localhost:8080"
+	defaultRunAddr         = ":8080"
+	defaultBaseURL         = "http://localhost:8080"
+	defaultFileStoragePath = "storage.json"
 )
 
 type ServerOption struct {
 	RunAddr      string
 	ShortURLAddr string
 	MaxAttempts  int
+	FSPath       string
+	LoggingLevel string
+}
+
+func (o *ServerOption) String() string {
+	return fmt.Sprintf(
+		"Server Configuration:\n"+
+			"  Run Address: %s\n"+
+			"  Short URL Address: %s\n"+
+			"  File Storage Path: %s\n"+
+			"  Max Attempts: %d\n"+
+			"  Logging Level: %s",
+		o.RunAddr,
+		o.ShortURLAddr,
+		o.FSPath,
+		o.MaxAttempts,
+		o.LoggingLevel,
+	)
 }
 
 type EnvConfig struct {
-	ServerAddress string `env:"SERVER_ADDRESS"`
-	ServerPort    string `env:"SERVER_PORT"`
-	BaseURL       string `env:"BASE_URL"`
-	MaxAttempts   int    `env:"MAX_ATTEMPTS" envDefault:"10"`
+	ServerAddress   string `env:"SERVER_ADDRESS"`
+	ServerPort      string `env:"SERVER_PORT"`
+	BaseURL         string `env:"BASE_URL"`
+	MaxAttempts     int    `env:"MAX_ATTEMPTS" envDefault:"10"`
+	FileStoragePath string `env:"FILE_STORAGE_PATH"`
+	LoggingLevel    string `env:"LOGGING_LEVEL" envDefault:"info"`
 }
 
 type flagConfig struct {
-	runAddrAlias string
-	runAddr      string
-	baseURLAlias string
-	baseURL      string
+	runAddrAlias    string
+	runAddr         string
+	baseURLAlias    string
+	baseURL         string
+	fileStoragePath string
 }
 
 func parseFlags() flagConfig {
@@ -41,6 +63,9 @@ func parseFlags() flagConfig {
 
 	flag.StringVar(&fc.baseURLAlias, "b", "", "base address for resulting shortened URL (alias)")
 	flag.StringVar(&fc.baseURL, "base-url", defaultBaseURL, "base address for resulting shortened URL")
+
+	flag.StringVar(&fc.fileStoragePath, "f", "", "file storage path")
+	flag.StringVar(&fc.fileStoragePath, "file-storage", defaultFileStoragePath, "file storage path")
 
 	flag.Parse()
 	return fc
@@ -75,6 +100,14 @@ func NewServerOption() (*ServerOption, error) {
 		}
 	}
 
+	fsPath := defaultFileStoragePath
+	if fc.fileStoragePath != defaultFileStoragePath {
+		fsPath = fc.fileStoragePath
+	}
+	if ec.FileStoragePath != "" {
+		fsPath = ec.FileStoragePath
+	}
+
 	baseURL := fc.baseURL
 	if fc.baseURLAlias != "" {
 		baseURL = fc.baseURLAlias
@@ -83,10 +116,14 @@ func NewServerOption() (*ServerOption, error) {
 		baseURL = ec.BaseURL
 	}
 
+	loggingLevel := ec.LoggingLevel
+
 	opts := &ServerOption{
 		RunAddr:      runAddr,
 		ShortURLAddr: baseURL,
 		MaxAttempts:  ec.MaxAttempts,
+		FSPath:       fsPath,
+		LoggingLevel: loggingLevel,
 	}
 
 	return opts, nil
