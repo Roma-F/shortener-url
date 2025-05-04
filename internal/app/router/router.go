@@ -11,18 +11,36 @@ import (
 	"github.com/go-chi/chi/v5"
 )
 
-func NewRouterHandler(cfg *config.ServerOption) http.Handler {
+func NewRouterHandler(cfg *config.ServerOption) (http.Handler, *storage.PostgresStorage) {
 	r := chi.NewRouter()
 
-	repo := storage.NewMemoryStorage(cfg.FSPath)
-	db, err := storage.NewPostgresStorage(cfg.DatabaseDSN)
-	if err != nil {
-		logger.Sugar.Infow("Init db error")
+	var repo service.Repository
+	var dbStorage *storage.PostgresStorage
+	var err error
+
+	if cfg.DatabaseDSN != "" {
+		dbStorage, err = storage.NewPostgresStorage(cfg.DatabaseDSN)
+		if err == nil {
+			logger.Sugar.Infow("Using PostgreSQL database for URL storage")
+			repo = dbStorage
+		} else {
+			logger.Sugar.Warnw("Failed to connect to PostgreSQL database, falling back to file storage", "error", err)
+		}
+	}
+
+	if repo == nil && cfg.FSPath != "" {
+		logger.Sugar.Infow("Using file storage for URL storage", "path", cfg.FSPath)
+		repo = storage.NewMemoryStorage(cfg.FSPath)
+	}
+
+	if repo == nil {
+		logger.Sugar.Infow("Using in-memory storage for URL storage")
+		repo = storage.NewMemoryStorage("")
 	}
 
 	URLService := service.NewURLService(repo, cfg)
 	URLHandler := handler.NewURLHandler(URLService)
-	LiveHandler := handler.NewPingHandler(db)
+	LiveHandler := handler.NewPingHandler(dbStorage)
 
 	r.Group(func(r chi.Router) {
 		r.Post("/", URLHandler.ShortenURLTextPlain)
@@ -34,5 +52,5 @@ func NewRouterHandler(cfg *config.ServerOption) http.Handler {
 		r.Post("/shorten", URLHandler.ShortenURLJSON)
 	})
 
-	return r
+	return r, dbStorage
 }

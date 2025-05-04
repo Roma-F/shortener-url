@@ -1,7 +1,9 @@
 package main
 
 import (
+	"context"
 	"log"
+	"time"
 
 	"github.com/Roma-F/shortener-url/internal/app/config"
 	"github.com/Roma-F/shortener-url/internal/app/logger"
@@ -20,7 +22,7 @@ func main() {
 
 	logger.Sugar.Infof("%s", cfg)
 
-	r := router.NewRouterHandler(cfg)
+	r, pgStorage := router.NewRouterHandler(cfg)
 
 	gzipRouter := middleware.WithGzip(r)
 	loggerRouter := middleware.WithLogging(gzipRouter, logger.Sugar)
@@ -30,8 +32,19 @@ func main() {
 	defer func() {
 		logger.Sugar.Info("Server stopping...")
 
-		if err := s.Close(); err != nil {
-			logger.Sugar.Errorw("Failed to close server", "error", err)
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+
+		if err := s.Shutdown(ctx); err != nil {
+			logger.Sugar.Errorw("Failed to shutdown server gracefully", "error", err)
+		}
+
+		if pgStorage != nil {
+			if err := pgStorage.Close(); err != nil {
+				logger.Sugar.Errorw("Failed to close database connection", "error", err)
+			} else {
+				logger.Sugar.Info("Database connection closed")
+			}
 		}
 
 		if err := logger.Sugar.Sync(); err != nil {
