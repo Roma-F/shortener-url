@@ -49,7 +49,10 @@ func NewRouterHandler(cfg *config.ServerOption) (http.Handler, *storage.Postgres
 	})
 
 	r.Route("/api", func(r chi.Router) {
-		r.Post("/shorten", URLHandler.ShortenURLJSON)
+		r.Route("/shorten", func(r chi.Router) {
+			r.Post("/", URLHandler.ShortenURLJSON)
+			r.Post("/batch", URLHandler.ShortenURLBatch)
+		})
 	})
 
 	return r, dbStorage

@@ -10,6 +10,7 @@ import (
 	"strings"
 
 	"github.com/Roma-F/shortener-url/internal/app/logger"
+	"github.com/Roma-F/shortener-url/internal/app/models"
 	"github.com/jmoiron/sqlx"
 	_ "github.com/lib/pq"
 )
@@ -20,6 +21,33 @@ var queryMap map[string]string
 
 type PostgresStorage struct {
 	db *sqlx.DB
+}
+
+func (p *PostgresStorage) SaveBatch(pairs []models.URLPair) ([]models.URLPair, error) {
+	tx, err := p.db.Beginx()
+	if err != nil {
+		return nil, fmt.Errorf("failed to start transaction: %w", err)
+	}
+	defer tx.Rollback()
+
+	stmt, err := tx.Preparex(getQuery("save-url"))
+	if err != nil {
+		return nil, fmt.Errorf("failed to prepare statement: %w", err)
+	}
+	defer stmt.Close()
+
+	for _, pair := range pairs {
+		_, err := stmt.Exec(pair.ShortURL, pair.OriginalURL)
+		if err != nil {
+			return nil, fmt.Errorf("failed to save URL pair: %w", err)
+		}
+	}
+
+	if err := tx.Commit(); err != nil {
+		return nil, fmt.Errorf("failed to commit transaction: %w", err)
+	}
+
+	return pairs, nil
 }
 
 func (p *PostgresStorage) Fetch(shortURL string) (string, error) {
@@ -45,7 +73,7 @@ func (p *PostgresStorage) FindByURL(originalURL string) (string, bool) {
 }
 
 func (p *PostgresStorage) Save(shortURL string, originalURL string) error {
-	_, err := p.db.Exec(getQuery("save-url"), shortURL, shortURL, originalURL)
+	_, err := p.db.Exec(getQuery("save-url"), shortURL, originalURL)
 	if err != nil {
 		return fmt.Errorf("error saving URL: %w", err)
 	}

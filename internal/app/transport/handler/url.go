@@ -16,6 +16,7 @@ import (
 type URLShortener interface {
 	FetchOriginalURL(id string) (string, error)
 	GenerateShortURL(originalURL string) (string, error)
+	ShortenBatch(requests []models.ShortenBatchItem) ([]models.ShortenedURLItem, error)
 }
 
 type URLHandler struct {
@@ -111,4 +112,48 @@ func (h *URLHandler) GetMainURL(w http.ResponseWriter, r *http.Request) {
 	}
 
 	http.Redirect(w, r, mainURL, http.StatusTemporaryRedirect)
+}
+
+func (h *URLHandler) ShortenURLBatch(w http.ResponseWriter, r *http.Request) {
+	contentType := r.Header.Get("Content-Type")
+	if contentType != "" && !strings.HasPrefix(contentType, "application/json") {
+		http.Error(w, "Content-Type must be application/json", http.StatusBadRequest)
+		return
+	}
+
+	var records []models.ShortenBatchItem
+	if err := json.NewDecoder(r.Body).Decode(&records); err != nil {
+		logger.Sugar.Debug("cannot decode request JSON body", zap.Error(err))
+		http.Error(w, "Invalid JSON payload", http.StatusBadRequest)
+		return
+	}
+
+	defer func() {
+		if err := r.Body.Close(); err != nil {
+			logger.Sugar.Errorw("Failed to close request body", "error", err)
+		}
+	}()
+
+	if len(records) == 0 {
+		http.Error(w, "Empty batch", http.StatusBadRequest)
+		return
+	}
+
+	shortenBatch, err := h.service.ShortenBatch(records)
+	if err != nil {
+		logger.Sugar.Errorw("Failed to shorten URLs batch", "error", err)
+		http.Error(w, "Failed to process batch", http.StatusInternalServerError)
+		return
+	}
+
+	jsonData, err := json.MarshalIndent(shortenBatch, "", "   ")
+	if err != nil {
+		http.Error(w, "Error creating JSON response: "+err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set("Content-Length", strconv.Itoa(len(jsonData)))
+	w.WriteHeader(http.StatusCreated)
+	w.Write(jsonData)
 }

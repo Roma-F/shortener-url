@@ -6,17 +6,79 @@ import (
 	"fmt"
 
 	"github.com/Roma-F/shortener-url/internal/app/config"
+	"github.com/Roma-F/shortener-url/internal/app/models"
 )
 
 type Repository interface {
 	Save(id string, url string) error
 	Fetch(id string) (string, error)
 	FindByURL(url string) (string, bool)
+	SaveBatch(pairs []models.URLPair) ([]models.URLPair, error)
 }
 
 type URLService struct {
 	repo Repository
 	cfg  *config.ServerOption
+}
+
+func (s *URLService) ShortenBatch(requests []models.ShortenBatchItem) ([]models.ShortenedURLItem, error) {
+	if len(requests) == 0 {
+		return nil, fmt.Errorf("empty batch")
+	}
+
+	pairs := make([]models.URLPair, 0, len(requests))
+	for _, req := range requests {
+		hash := md5.Sum([]byte(req.OriginalUrl))
+		id := hex.EncodeToString(hash[:])[:8]
+
+		if existingID, found := s.repo.FindByURL(req.OriginalUrl); found {
+			pairs = append(pairs, models.URLPair{
+				OriginalURL:   req.OriginalUrl,
+				ShortURL:      fmt.Sprintf("%s/%s", s.cfg.ShortURLAddr, existingID),
+				CorrelationID: req.CorrelationId,
+			})
+			continue
+		}
+
+		if _, err := s.repo.Fetch(id); err == nil {
+			unique := false
+			for i := 1; i <= s.cfg.MaxAttempts; i++ {
+				salt := fmt.Sprintf("%d", i)
+				newHash := md5.Sum([]byte(req.OriginalUrl + salt))
+				newID := hex.EncodeToString(newHash[:])[:8]
+
+				if _, err := s.repo.Fetch(newID); err != nil {
+					id = newID
+					unique = true
+					break
+				}
+			}
+			if !unique {
+				return nil, fmt.Errorf("failed to generate unique short URL for %s", req.OriginalUrl)
+			}
+		}
+
+		pairs = append(pairs, models.URLPair{
+			OriginalURL:   req.OriginalUrl,
+			ShortURL:      fmt.Sprintf("%s/%s", s.cfg.ShortURLAddr, id),
+			CorrelationID: req.CorrelationId,
+		})
+	}
+
+	savedPairs, err := s.repo.SaveBatch(pairs)
+	if err != nil {
+		return nil, fmt.Errorf("failed to save batch: %v", err)
+	}
+
+	result := make([]models.ShortenedURLItem, len(savedPairs))
+	for i, pair := range savedPairs {
+		result[i] = models.ShortenedURLItem{
+			CorrelationId: pair.CorrelationID,
+			ShortUrl:      pair.ShortURL,
+		}
+	}
+
+	return result, nil
 }
 
 func NewURLService(repo Repository, cfg *config.ServerOption) *URLService {
