@@ -56,12 +56,12 @@ func TestURLService_ShortenBatch(t *testing.T) {
 
 	requests := []models.ShortenBatchItem{
 		{
-			CorrelationId: "1",
-			OriginalUrl:   "https://example1.com",
+			CorrelationID: "1",
+			OriginalURL:   "https://example1.com",
 		},
 		{
-			CorrelationId: "2",
-			OriginalUrl:   "https://example2.com",
+			CorrelationID: "2",
+			OriginalURL:   "https://example2.com",
 		},
 	}
 
@@ -69,20 +69,20 @@ func TestURLService_ShortenBatch(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Equal(t, 2, len(result))
 
-	assert.Equal(t, "1", result[0].CorrelationId)
-	assert.Equal(t, "2", result[1].CorrelationId)
+	assert.Equal(t, "1", result[0].CorrelationID)
+	assert.Equal(t, "2", result[1].CorrelationID)
 
 	expectedPrefix := "http://localhost:8080/"
-	assert.True(t, strings.HasPrefix(result[0].ShortUrl, expectedPrefix))
-	assert.True(t, strings.HasPrefix(result[1].ShortUrl, expectedPrefix))
+	assert.True(t, strings.HasPrefix(result[0].ShortURL, expectedPrefix))
+	assert.True(t, strings.HasPrefix(result[1].ShortURL, expectedPrefix))
 
-	parts1 := strings.Split(result[0].ShortUrl, "/")
+	parts1 := strings.Split(result[0].ShortURL, "/")
 	id1 := parts1[len(parts1)-1]
 	url1, err := svc.FetchOriginalURL(id1)
 	assert.NoError(t, err)
 	assert.Equal(t, "https://example1.com", url1)
 
-	parts2 := strings.Split(result[1].ShortUrl, "/")
+	parts2 := strings.Split(result[1].ShortURL, "/")
 	id2 := parts2[len(parts2)-1]
 	url2, err := svc.FetchOriginalURL(id2)
 	assert.NoError(t, err)
@@ -103,12 +103,12 @@ func TestURLService_ShortenBatch_DuplicateURLs(t *testing.T) {
 
 	requests := []models.ShortenBatchItem{
 		{
-			CorrelationId: "1",
-			OriginalUrl:   "https://example.com",
+			CorrelationID: "1",
+			OriginalURL:   "https://example.com",
 		},
 		{
-			CorrelationId: "2",
-			OriginalUrl:   "https://example.com",
+			CorrelationID: "2",
+			OriginalURL:   "https://example.com",
 		},
 	}
 
@@ -116,5 +116,5 @@ func TestURLService_ShortenBatch_DuplicateURLs(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Equal(t, 2, len(result))
 
-	assert.Equal(t, result[0].ShortUrl, result[1].ShortUrl)
+	assert.Equal(t, result[0].ShortURL, result[1].ShortURL)
 }

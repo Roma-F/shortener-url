@@ -202,12 +202,12 @@ func TestURLHandler_ShortenURLBatch_Success(t *testing.T) {
 	assert.NoError(t, err)
 
 	assert.Equal(t, 2, len(jsonResp))
-	assert.Equal(t, "1", jsonResp[0].CorrelationId)
-	assert.Equal(t, "2", jsonResp[1].CorrelationId)
+	assert.Equal(t, "1", jsonResp[0].CorrelationID)
+	assert.Equal(t, "2", jsonResp[1].CorrelationID)
 
 	expectedPrefix := "http://localhost:8080/"
-	assert.True(t, strings.HasPrefix(jsonResp[0].ShortUrl, expectedPrefix))
-	assert.True(t, strings.HasPrefix(jsonResp[1].ShortUrl, expectedPrefix))
+	assert.True(t, strings.HasPrefix(jsonResp[0].ShortURL, expectedPrefix))
+	assert.True(t, strings.HasPrefix(jsonResp[1].ShortURL, expectedPrefix))
 }
 
 func TestURLHandler_ShortenURLBatch_EmptyBatch(t *testing.T) {

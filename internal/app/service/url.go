@@ -28,14 +28,14 @@ func (s *URLService) ShortenBatch(requests []models.ShortenBatchItem) ([]models.
 
 	pairs := make([]models.URLPair, 0, len(requests))
 	for _, req := range requests {
-		hash := md5.Sum([]byte(req.OriginalUrl))
+		hash := md5.Sum([]byte(req.OriginalURL))
 		id := hex.EncodeToString(hash[:])[:8]
 
-		if existingID, found := s.repo.FindByURL(req.OriginalUrl); found {
+		if existingID, found := s.repo.FindByURL(req.OriginalURL); found {
 			pairs = append(pairs, models.URLPair{
-				OriginalURL:   req.OriginalUrl,
+				OriginalURL:   req.OriginalURL,
 				ShortURL:      existingID,
-				CorrelationID: req.CorrelationId,
+				CorrelationID: req.CorrelationID,
 			})
 			continue
 		}
@@ -44,7 +44,7 @@ func (s *URLService) ShortenBatch(requests []models.ShortenBatchItem) ([]models.
 			unique := false
 			for i := 1; i <= s.cfg.MaxAttempts; i++ {
 				salt := fmt.Sprintf("%d", i)
-				newHash := md5.Sum([]byte(req.OriginalUrl + salt))
+				newHash := md5.Sum([]byte(req.OriginalURL + salt))
 				newID := hex.EncodeToString(newHash[:])[:8]
 
 				if _, err := s.repo.Fetch(newID); err != nil {
@@ -54,14 +54,14 @@ func (s *URLService) ShortenBatch(requests []models.ShortenBatchItem) ([]models.
 				}
 			}
 			if !unique {
-				return nil, fmt.Errorf("failed to generate unique short URL for %s", req.OriginalUrl)
+				return nil, fmt.Errorf("failed to generate unique short URL for %s", req.OriginalURL)
 			}
 		}
 
 		pairs = append(pairs, models.URLPair{
-			OriginalURL:   req.OriginalUrl,
+			OriginalURL:   req.OriginalURL,
 			ShortURL:      id,
-			CorrelationID: req.CorrelationId,
+			CorrelationID: req.CorrelationID,
 		})
 	}
 
@@ -73,8 +73,8 @@ func (s *URLService) ShortenBatch(requests []models.ShortenBatchItem) ([]models.
 	result := make([]models.ShortenedURLItem, len(savedPairs))
 	for i, pair := range savedPairs {
 		result[i] = models.ShortenedURLItem{
-			CorrelationId: pair.CorrelationID,
-			ShortUrl:      fmt.Sprintf("%s/%s", s.cfg.ShortURLAddr, pair.ShortURL),
+			CorrelationID: pair.CorrelationID,
+			ShortURL:      fmt.Sprintf("%s/%s", s.cfg.ShortURLAddr, pair.ShortURL),
 		}
 	}
 
