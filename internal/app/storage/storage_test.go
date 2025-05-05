@@ -35,7 +35,7 @@ func TestMemoryStorage_Fetch(t *testing.T) {
 
 	ms.mu.Lock()
 	ms.records[tID] = URLRecord{
-		UUID:        "1",
+		ID:          1,
 		ShortURL:    tID,
 		OriginalURL: originalURL,
 	}
@@ -131,14 +131,11 @@ func TestMemoryStorage_LoadFromFile(t *testing.T) {
 }
 
 func TestMemoryStorage_FilePathEmpty(t *testing.T) {
-	// Создаем хранилище без пути к файлу
 	ms := NewMemoryStorage("")
 
-	// Добавляем URL
 	err := ms.Save("short1", "http://example1.com")
 	assert.NoError(t, err)
 
-	// Все операции должны выполняться успешно, даже если путь к файлу не указан
 	url, err := ms.Fetch("short1")
 	assert.NoError(t, err)
 	assert.Equal(t, "http://example1.com", url)

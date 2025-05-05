@@ -34,7 +34,7 @@ func (s *URLService) ShortenBatch(requests []models.ShortenBatchItem) ([]models.
 		if existingID, found := s.repo.FindByURL(req.OriginalUrl); found {
 			pairs = append(pairs, models.URLPair{
 				OriginalURL:   req.OriginalUrl,
-				ShortURL:      fmt.Sprintf("%s/%s", s.cfg.ShortURLAddr, existingID),
+				ShortURL:      existingID,
 				CorrelationID: req.CorrelationId,
 			})
 			continue
@@ -60,7 +60,7 @@ func (s *URLService) ShortenBatch(requests []models.ShortenBatchItem) ([]models.
 
 		pairs = append(pairs, models.URLPair{
 			OriginalURL:   req.OriginalUrl,
-			ShortURL:      fmt.Sprintf("%s/%s", s.cfg.ShortURLAddr, id),
+			ShortURL:      id,
 			CorrelationID: req.CorrelationId,
 		})
 	}
@@ -74,7 +74,7 @@ func (s *URLService) ShortenBatch(requests []models.ShortenBatchItem) ([]models.
 	for i, pair := range savedPairs {
 		result[i] = models.ShortenedURLItem{
 			CorrelationId: pair.CorrelationID,
-			ShortUrl:      pair.ShortURL,
+			ShortUrl:      fmt.Sprintf("%s/%s", s.cfg.ShortURLAddr, pair.ShortURL),
 		}
 	}
 
