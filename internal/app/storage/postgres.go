@@ -73,10 +73,20 @@ func (p *PostgresStorage) FindByURL(originalURL string) (string, bool) {
 }
 
 func (p *PostgresStorage) Save(shortURL string, originalURL string) error {
-	_, err := p.db.Exec(getQuery("save-url"), shortURL, originalURL)
+	_, err := p.db.Exec(getQuery("save-url-check-conflict"), shortURL, originalURL)
 	if err != nil {
 		return fmt.Errorf("error saving URL: %w", err)
 	}
+	var count int
+	err = p.db.QueryRow(getQuery("check-short-url-exists"), shortURL).Scan(&count)
+	if err != nil {
+		return fmt.Errorf("error checking URL record: %w", err)
+	}
+
+	if count == 0 {
+		return fmt.Errorf("duplicate original URL: %w", ErrURLConflict)
+	}
+
 	return nil
 }
 

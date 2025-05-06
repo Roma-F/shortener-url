@@ -3,10 +3,12 @@ package service
 import (
 	"crypto/md5"
 	"encoding/hex"
+	"errors"
 	"fmt"
 
 	"github.com/Roma-F/shortener-url/internal/app/config"
 	"github.com/Roma-F/shortener-url/internal/app/models"
+	"github.com/Roma-F/shortener-url/internal/app/storage"
 )
 
 type Repository interface {
@@ -91,7 +93,7 @@ func (s *URLService) FetchOriginalURL(id string) (string, error) {
 
 func (s *URLService) GenerateShortURL(originalURL string) (string, error) {
 	if id, found := s.repo.FindByURL(originalURL); found {
-		return fmt.Sprintf("%s/%s", s.cfg.ShortURLAddr, id), nil
+		return fmt.Sprintf("%s/%s", s.cfg.ShortURLAddr, id), storage.ErrURLConflict
 	}
 
 	hash := md5.Sum([]byte(originalURL))
@@ -116,6 +118,12 @@ func (s *URLService) GenerateShortURL(originalURL string) (string, error) {
 	}
 
 	if err := s.repo.Save(id, originalURL); err != nil {
+		if errors.Is(err, storage.ErrURLConflict) {
+			existingID, found := s.repo.FindByURL(originalURL)
+			if found {
+				return fmt.Sprintf("%s/%s", s.cfg.ShortURLAddr, existingID), storage.ErrURLConflict
+			}
+		}
 		return "", fmt.Errorf("failed to save short url: %v", err)
 	}
 

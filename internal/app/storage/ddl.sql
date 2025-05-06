@@ -18,14 +18,23 @@ CREATE TABLE IF NOT EXISTS urls (
     original_url TEXT NOT NULL
 );
 CREATE INDEX IF NOT EXISTS idx_original_url ON urls (original_url);
+CREATE UNIQUE INDEX IF NOT EXISTS unique_original_url ON urls (original_url);
 
 -- name: save-url
 INSERT INTO urls (short_url, original_url)
 VALUES ($1, $2)
 ON CONFLICT (short_url) DO NOTHING;
 
+-- name: save-url-check-conflict
+INSERT INTO urls (short_url, original_url)
+VALUES ($1, $2)
+ON CONFLICT (original_url) DO NOTHING;
+
 -- name: fetch-url
 SELECT original_url FROM urls WHERE short_url = $1;
 
 -- name: find-by-original-url
 SELECT short_url FROM urls WHERE original_url = $1 LIMIT 1;
+
+-- name: check-short-url-exists
+SELECT COUNT(*) FROM urls WHERE short_url = $1;
