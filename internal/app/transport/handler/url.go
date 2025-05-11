@@ -10,7 +10,7 @@ import (
 
 	"github.com/Roma-F/shortener-url/internal/app/logger"
 	"github.com/Roma-F/shortener-url/internal/app/models"
-	"github.com/Roma-F/shortener-url/internal/app/storage"
+	"github.com/Roma-F/shortener-url/internal/app/repository"
 	"github.com/go-chi/chi/v5"
 	"go.uber.org/zap"
 )
@@ -51,7 +51,7 @@ func (h *URLHandler) ShortenURLTextPlain(w http.ResponseWriter, r *http.Request)
 	url := string(body)
 	shortURL, err := h.service.GenerateShortURL(url)
 	if err != nil {
-		if errors.Is(err, storage.ErrURLConflict) {
+		if errors.Is(err, repository.ErrURLConflict) {
 			w.Header().Set("Content-Type", "text/plain")
 			w.Header().Set("Content-Length", strconv.Itoa(len(shortURL)))
 			w.WriteHeader(http.StatusConflict)
@@ -90,7 +90,7 @@ func (h *URLHandler) ShortenURLJSON(w http.ResponseWriter, r *http.Request) {
 
 	shortURL, err := h.service.GenerateShortURL(req.URL)
 	if err != nil {
-		if errors.Is(err, storage.ErrURLConflict) {
+		if errors.Is(err, repository.ErrURLConflict) {
 			resp := models.ShortenURLResp{
 				Result: shortURL,
 			}

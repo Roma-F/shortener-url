@@ -11,15 +11,6 @@ SELECT COUNT(*) FROM migrations WHERE name = $1;
 -- name: record-migration
 INSERT INTO migrations (name) VALUES ($1);
 
--- name: create-urls-table
-CREATE TABLE IF NOT EXISTS urls (
-    id SERIAL PRIMARY KEY,
-    short_url VARCHAR(255) NOT NULL UNIQUE,
-    original_url TEXT NOT NULL
-);
-CREATE INDEX IF NOT EXISTS idx_original_url ON urls (original_url);
-CREATE UNIQUE INDEX IF NOT EXISTS unique_original_url ON urls (original_url);
-
 -- name: save-url
 INSERT INTO urls (short_url, original_url)
 VALUES ($1, $2)

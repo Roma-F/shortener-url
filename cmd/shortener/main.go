@@ -9,6 +9,8 @@ import (
 	"github.com/Roma-F/shortener-url/internal/app/logger"
 	"github.com/Roma-F/shortener-url/internal/app/router"
 	"github.com/Roma-F/shortener-url/internal/app/server"
+	"github.com/Roma-F/shortener-url/internal/app/service"
+	"github.com/Roma-F/shortener-url/internal/app/storage"
 	"github.com/Roma-F/shortener-url/internal/app/transport/middleware"
 )
 
@@ -22,7 +24,12 @@ func main() {
 
 	logger.Sugar.Infof("%s", cfg)
 
-	r, pgStorage := router.NewRouterHandler(cfg)
+	repo, pgStorage := storage.NewRepository(cfg)
+
+	urlService := service.NewURLService(repo, cfg)
+	healthService := service.NewHealthService(pgStorage)
+
+	r := router.NewRouter(urlService, healthService)
 
 	gzipRouter := middleware.WithGzip(r)
 	loggerRouter := middleware.WithLogging(gzipRouter, logger.Sugar)

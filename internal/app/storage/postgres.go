@@ -5,12 +5,15 @@ import (
 	_ "embed"
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
-	"sort"
 	"strings"
 
+	"github.com/Roma-F/shortener-url/internal/app/config"
 	"github.com/Roma-F/shortener-url/internal/app/logger"
 	"github.com/Roma-F/shortener-url/internal/app/models"
+	"github.com/Roma-F/shortener-url/internal/app/repository"
+	_ "github.com/golang-migrate/migrate/v4/source/file"
 	"github.com/jmoiron/sqlx"
 	_ "github.com/lib/pq"
 )
@@ -23,18 +26,32 @@ type PostgresStorage struct {
 	db *sqlx.DB
 }
 
+func init() {
+	queryMap = parseQueries(queries)
+}
+
 func (p *PostgresStorage) SaveBatch(pairs []models.URLPair) ([]models.URLPair, error) {
 	tx, err := p.db.Beginx()
 	if err != nil {
 		return nil, fmt.Errorf("failed to start transaction: %w", err)
 	}
-	defer tx.Rollback()
+
+	defer func() {
+		if err := tx.Rollback(); err != nil {
+			logger.Sugar.Errorw("Failed to rollback transaction", "error", err)
+		}
+	}()
 
 	stmt, err := tx.Preparex(getQuery("save-url"))
 	if err != nil {
-		return nil, fmt.Errorf("failed to prepare statement: %w", err)
+		return nil, fmt.Errorf("Failed to prepare statement: %w", err)
 	}
-	defer stmt.Close()
+
+	defer func() {
+		if err := stmt.Close(); err != nil {
+			logger.Sugar.Errorw("Failed close statement", "error", err)
+		}
+	}()
 
 	for _, pair := range pairs {
 		_, err := stmt.Exec(pair.ShortURL, pair.OriginalURL)
@@ -84,14 +101,10 @@ func (p *PostgresStorage) Save(shortURL string, originalURL string) error {
 	}
 
 	if count == 0 {
-		return fmt.Errorf("duplicate original URL: %w", ErrURLConflict)
+		return fmt.Errorf("duplicate original URL: %w", repository.ErrURLConflict)
 	}
 
 	return nil
-}
-
-func init() {
-	queryMap = parseQueries(queries)
 }
 
 func parseQueries(queriesText string) map[string]string {
@@ -130,135 +143,67 @@ func getQuery(name string) string {
 	return query
 }
 
-func NewPostgresStorage(dsn string) (*PostgresStorage, error) {
-	if dsn == "" {
+func NewPostgresStorage(cfg *config.ServerOption) (*PostgresStorage, error) {
+	if cfg.DatabaseDSN == "" {
 		return nil, fmt.Errorf("database DSN is empty")
 	}
 
-	db, err := sqlx.Connect("postgres", dsn)
+	db, err := sqlx.Connect("postgres", cfg.DatabaseDSN)
 	if err != nil {
 		return nil, fmt.Errorf("failed to connect to database: %w", err)
 	}
 
-	if err := applyMigrations(db); err != nil {
-		return nil, fmt.Errorf("failed to apply migrations: %w", err)
+	if cfg.ApplyMigrations {
+		if err := runMigrationsWithTool(cfg); err != nil {
+			logger.Sugar.Warnw("Failed to apply migrations", "error", err)
+		}
 	}
 
 	return &PostgresStorage{db: db}, nil
 }
 
+func runMigrationsWithTool(cfg *config.ServerOption) error {
+	currentDir, err := os.Getwd()
+	if err != nil {
+		return fmt.Errorf("failed to get current directory: %w", err)
+	}
+
+	migrationsPath := filepath.Join(currentDir, cfg.MigrationsPath)
+
+	_, err = os.Stat(migrationsPath)
+	if os.IsNotExist(err) {
+		logger.Sugar.Infow("Migrations directory not found, skipping migrations", "path", migrationsPath)
+		return nil
+	}
+
+	logger.Sugar.Infow("Using migrations directory", "path", migrationsPath)
+
+	cmd := exec.Command(
+		"go", "run", filepath.Join(currentDir, "cmd/migrator/main.go"),
+		"-d", cfg.DatabaseDSN,
+		"-p", migrationsPath,
+		"-t", cfg.MigrationsTable,
+	)
+
+	logger.Sugar.Debugw("Running migration command", "command", cmd.String())
+
+	output, err := cmd.CombinedOutput()
+	outputStr := string(output)
+
+	if err != nil {
+		if strings.Contains(outputStr, "no migrations to apply") {
+			logger.Sugar.Info("No migrations to apply")
+			return nil
+		}
+		return fmt.Errorf("migration tool failed: %s: %w", outputStr, err)
+	}
+
+	logger.Sugar.Infow("Migrations applied successfully", "output", outputStr)
+	return nil
+}
+
 func (p *PostgresStorage) Ping(ctx context.Context) error {
 	return p.db.PingContext(ctx)
-}
-
-func createMigrationsTable(db *sqlx.DB) error {
-	_, err := db.Exec(getQuery("create-migrations-table"))
-	return err
-}
-
-func isMigrationApplied(db *sqlx.DB, name string) (bool, error) {
-	var count int
-	err := db.QueryRow(getQuery("check-migration-applied"), name).Scan(&count)
-	if err != nil {
-		return false, err
-	}
-	return count > 0, nil
-}
-
-func recordMigration(db *sqlx.DB, name string) error {
-	_, err := db.Exec(getQuery("record-migration"), name)
-	return err
-}
-
-func extractUpSQL(content []byte) (string, error) {
-	sqlContent := string(content)
-
-	upParts := strings.Split(sqlContent, "-- +goose Down")
-	if len(upParts) > 0 {
-		upSQL := strings.Replace(upParts[0], "-- +goose Up", "", 1)
-		return strings.TrimSpace(upSQL), nil
-	}
-
-	return "", fmt.Errorf("invalid migration format")
-}
-
-func applyMigrations(db *sqlx.DB) error {
-	if err := createMigrationsTable(db); err != nil {
-		return fmt.Errorf("failed to create migrations table: %w", err)
-	}
-
-	migrationsDir := "migrations"
-	_, err := os.Stat(migrationsDir)
-	if os.IsNotExist(err) {
-		logger.Sugar.Info("Migrations directory does not exist, using built-in schema")
-	}
-
-	files, err := os.ReadDir(migrationsDir)
-	if err != nil {
-		logger.Sugar.Infow("Error reading migrations directory", "error", err)
-	}
-
-	if len(files) == 0 {
-		logger.Sugar.Info("No migration files found, using built-in schema")
-	}
-
-	var migrationFiles []string
-	for _, file := range files {
-		if !file.IsDir() && strings.HasSuffix(file.Name(), ".sql") {
-			migrationFiles = append(migrationFiles, file.Name())
-		}
-	}
-
-	sort.Strings(migrationFiles)
-
-	for _, fileName := range migrationFiles {
-		migrationPath := filepath.Join(migrationsDir, fileName)
-
-		applied, err := isMigrationApplied(db, fileName)
-		if err != nil {
-			return fmt.Errorf("failed to check migration status: %w", err)
-		}
-
-		if applied {
-			logger.Sugar.Infow("Migration already applied, skipping", "file", fileName)
-			continue
-		}
-
-		content, err := os.ReadFile(migrationPath)
-		if err != nil {
-			return fmt.Errorf("failed to read migration file %s: %w", fileName, err)
-		}
-
-		upSQL, err := extractUpSQL(content)
-		if err != nil {
-			return fmt.Errorf("failed to extract Up SQL from %s: %w", fileName, err)
-		}
-
-		tx, err := db.Beginx()
-		if err != nil {
-			return fmt.Errorf("failed to start transaction for migration %s: %w", fileName, err)
-		}
-
-		_, err = tx.Exec(upSQL)
-		if err != nil {
-			tx.Rollback()
-			return fmt.Errorf("failed to apply migration %s: %w", fileName, err)
-		}
-
-		_, err = tx.Exec(getQuery("record-migration"), fileName)
-		if err != nil {
-			tx.Rollback()
-			return fmt.Errorf("failed to record migration %s: %w", fileName, err)
-		}
-
-		if err := tx.Commit(); err != nil {
-			return fmt.Errorf("failed to commit migration %s: %w", fileName, err)
-		}
-
-		logger.Sugar.Infow("Applied migration", "file", fileName)
-	}
-
-	return nil
 }
 
 func (p *PostgresStorage) Close() error {

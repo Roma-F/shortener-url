@@ -1,28 +1,26 @@
 package handler
 
 import (
+	"context"
 	"net/http"
-
-	"github.com/Roma-F/shortener-url/internal/app/storage"
 )
 
-type PingHandler struct {
-	db *storage.PostgresStorage
+type HealthService interface {
+	PingDB(ctx context.Context) error
 }
 
-func NewPingHandler(db *storage.PostgresStorage) *PingHandler {
+type PingHandler struct {
+	service HealthService
+}
+
+func NewPingHandler(service HealthService) *PingHandler {
 	return &PingHandler{
-		db: db,
+		service: service,
 	}
 }
 
 func (h *PingHandler) Ping(w http.ResponseWriter, r *http.Request) {
-	if h.db == nil {
-		w.WriteHeader(http.StatusInternalServerError)
-		return
-	}
-
-	if err := h.db.Ping(r.Context()); err != nil {
+	if err := h.service.PingDB(r.Context()); err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}

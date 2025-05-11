@@ -11,9 +11,8 @@ import (
 
 	"github.com/Roma-F/shortener-url/internal/app/logger"
 	"github.com/Roma-F/shortener-url/internal/app/models"
+	"github.com/Roma-F/shortener-url/internal/app/repository"
 )
-
-var ErrURLConflict = errors.New("original URL already exists")
 
 type URLRecord struct {
 	ID          int    `json:"id"`
@@ -152,7 +151,7 @@ func (m *MemoryStorage) Save(shortURL string, originalURL string) error {
 
 	for _, record := range m.records {
 		if record.OriginalURL == originalURL {
-			return ErrURLConflict
+			return repository.ErrURLConflict
 		}
 	}
 

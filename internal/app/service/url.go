@@ -8,18 +8,11 @@ import (
 
 	"github.com/Roma-F/shortener-url/internal/app/config"
 	"github.com/Roma-F/shortener-url/internal/app/models"
-	"github.com/Roma-F/shortener-url/internal/app/storage"
+	"github.com/Roma-F/shortener-url/internal/app/repository"
 )
 
-type Repository interface {
-	Save(id string, url string) error
-	Fetch(id string) (string, error)
-	FindByURL(url string) (string, bool)
-	SaveBatch(pairs []models.URLPair) ([]models.URLPair, error)
-}
-
 type URLService struct {
-	repo Repository
+	repo repository.Repository
 	cfg  *config.ServerOption
 }
 
@@ -83,7 +76,7 @@ func (s *URLService) ShortenBatch(requests []models.ShortenBatchItem) ([]models.
 	return result, nil
 }
 
-func NewURLService(repo Repository, cfg *config.ServerOption) *URLService {
+func NewURLService(repo repository.Repository, cfg *config.ServerOption) *URLService {
 	return &URLService{repo: repo, cfg: cfg}
 }
 
@@ -93,7 +86,7 @@ func (s *URLService) FetchOriginalURL(id string) (string, error) {
 
 func (s *URLService) GenerateShortURL(originalURL string) (string, error) {
 	if id, found := s.repo.FindByURL(originalURL); found {
-		return fmt.Sprintf("%s/%s", s.cfg.ShortURLAddr, id), storage.ErrURLConflict
+		return fmt.Sprintf("%s/%s", s.cfg.ShortURLAddr, id), repository.ErrURLConflict
 	}
 
 	hash := md5.Sum([]byte(originalURL))
@@ -118,10 +111,10 @@ func (s *URLService) GenerateShortURL(originalURL string) (string, error) {
 	}
 
 	if err := s.repo.Save(id, originalURL); err != nil {
-		if errors.Is(err, storage.ErrURLConflict) {
+		if errors.Is(err, repository.ErrURLConflict) {
 			existingID, found := s.repo.FindByURL(originalURL)
 			if found {
-				return fmt.Sprintf("%s/%s", s.cfg.ShortURLAddr, existingID), storage.ErrURLConflict
+				return fmt.Sprintf("%s/%s", s.cfg.ShortURLAddr, existingID), repository.ErrURLConflict
 			}
 		}
 		return "", fmt.Errorf("failed to save short url: %v", err)
