@@ -44,7 +44,7 @@ func (p *PostgresStorage) SaveBatch(pairs []models.URLPair) ([]models.URLPair, e
 
 	stmt, err := tx.Preparex(getQuery("save-url"))
 	if err != nil {
-		return nil, fmt.Errorf("Failed to prepare statement: %w", err)
+		return nil, fmt.Errorf("failed to prepare statement: %w", err)
 	}
 
 	defer func() {
