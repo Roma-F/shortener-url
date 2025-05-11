@@ -161,11 +161,9 @@ func NewServerOption() (*ServerOption, error) {
 		migrationsTable = ec.MigrationsTable
 	}
 
-	applyMigrations := fc.applyMigrations
+	applyMigrations := ec.ApplyMigrations
 	if !fc.applyMigrations {
 		applyMigrations = false
-	} else {
-		applyMigrations = ec.ApplyMigrations
 	}
 
 	opts := &ServerOption{
