@@ -70,7 +70,10 @@ func TestSetAndGetUserCookie(t *testing.T) {
 	w := httptest.NewRecorder()
 	SetUserCookie(w, userID, testSecretKey)
 
-	cookies := w.Result().Cookies()
+	resp := w.Result()
+	defer resp.Body.Close()
+
+	cookies := resp.Cookies()
 	assert.Equal(t, 1, len(cookies))
 
 	cookie := cookies[0]
@@ -109,8 +112,11 @@ func TestGetUserIDFromCookie_WrongSecret(t *testing.T) {
 
 	w := httptest.NewRecorder()
 	SetUserCookie(w, userID, testSecretKey)
-	cookie := w.Result().Cookies()[0]
 
+	resp := w.Result()
+	defer resp.Body.Close()
+
+	cookie := resp.Cookies()[0]
 	req := httptest.NewRequest("GET", "/", nil)
 	req.AddCookie(cookie)
 
@@ -131,7 +137,9 @@ func TestContextOperations(t *testing.T) {
 	emptyUserID := GetUserIDFromContext(ctx)
 	assert.Empty(t, emptyUserID)
 
-	ctxWithWrongType := context.WithValue(ctx, UserIDKey, 123)
+	type testKeyType string
+	const testKey testKeyType = "test-key"
+	ctxWithWrongType := context.WithValue(ctx, testKey, 123)
 	wrongTypeUserID := GetUserIDFromContext(ctxWithWrongType)
 	assert.Empty(t, wrongTypeUserID)
 }

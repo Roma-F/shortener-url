@@ -17,8 +17,11 @@ import (
 const (
 	UserCookieName = "user_id"
 	CookieMaxAge   = 30 * 24 * 60 * 60
-	UserIDKey      = "userID"
 )
+
+type UserIDKeyType string
+
+const UserIDKey UserIDKeyType = "userID"
 
 func GetUserIDFromCookie(r *http.Request, secretKey string) string {
 	cookie, err := r.Cookie(UserCookieName)
