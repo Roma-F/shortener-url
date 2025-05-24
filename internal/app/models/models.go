@@ -22,4 +22,10 @@ type URLPair struct {
 	OriginalURL   string
 	ShortURL      string
 	CorrelationID string
+	UserID        string
+}
+
+type UserURL struct {
+	ShortURL    string `json:"short_url"`
+	OriginalURL string `json:"original_url"`
 }

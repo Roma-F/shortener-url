@@ -8,6 +8,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/Roma-F/shortener-url/internal/app/auth"
 	"github.com/Roma-F/shortener-url/internal/app/logger"
 	"github.com/Roma-F/shortener-url/internal/app/models"
 	"github.com/Roma-F/shortener-url/internal/app/repository"
@@ -18,7 +19,10 @@ import (
 type URLShortener interface {
 	FetchOriginalURL(id string) (string, error)
 	GenerateShortURL(originalURL string) (string, error)
+	GenerateShortURLWithUser(originalURL string, userID string) (string, error)
 	ShortenBatch(requests []models.ShortenBatchItem) ([]models.ShortenedURLItem, error)
+	ShortenBatchWithUser(requests []models.ShortenBatchItem, userID string) ([]models.ShortenedURLItem, error)
+	GetUserURLs(userID string) ([]models.UserURL, error)
 }
 
 type URLHandler struct {
@@ -49,7 +53,15 @@ func (h *URLHandler) ShortenURLTextPlain(w http.ResponseWriter, r *http.Request)
 	}()
 
 	url := string(body)
-	shortURL, err := h.service.GenerateShortURL(url)
+	userID := auth.GetUserIDFromContext(r.Context())
+
+	var shortURL string
+	if userID != "" {
+		shortURL, err = h.service.GenerateShortURLWithUser(url, userID)
+	} else {
+		shortURL, err = h.service.GenerateShortURL(url)
+	}
+
 	if err != nil {
 		if errors.Is(err, repository.ErrURLConflict) {
 			w.Header().Set("Content-Type", "text/plain")
@@ -88,7 +100,16 @@ func (h *URLHandler) ShortenURLJSON(w http.ResponseWriter, r *http.Request) {
 		}
 	}()
 
-	shortURL, err := h.service.GenerateShortURL(req.URL)
+	userID := auth.GetUserIDFromContext(r.Context())
+
+	var shortURL string
+	var err error
+	if userID != "" {
+		shortURL, err = h.service.GenerateShortURLWithUser(req.URL, userID)
+	} else {
+		shortURL, err = h.service.GenerateShortURL(req.URL)
+	}
+
 	if err != nil {
 		if errors.Is(err, repository.ErrURLConflict) {
 			resp := models.ShortenURLResp{
@@ -164,7 +185,16 @@ func (h *URLHandler) ShortenURLBatch(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	shortenBatch, err := h.service.ShortenBatch(records)
+	userID := auth.GetUserIDFromContext(r.Context())
+
+	var shortenBatch []models.ShortenedURLItem
+	var err error
+	if userID != "" {
+		shortenBatch, err = h.service.ShortenBatchWithUser(records, userID)
+	} else {
+		shortenBatch, err = h.service.ShortenBatch(records)
+	}
+
 	if err != nil {
 		logger.Sugar.Errorw("Failed to shorten URLs batch", "error", err)
 		http.Error(w, "Failed to process batch", http.StatusInternalServerError)
@@ -180,5 +210,36 @@ func (h *URLHandler) ShortenURLBatch(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	w.Header().Set("Content-Length", strconv.Itoa(len(jsonData)))
 	w.WriteHeader(http.StatusCreated)
+	w.Write(jsonData)
+}
+
+func (h *URLHandler) GetUserURLs(w http.ResponseWriter, r *http.Request) {
+	userID := auth.GetUserIDFromContext(r.Context())
+	if userID == "" {
+		w.WriteHeader(http.StatusUnauthorized)
+		return
+	}
+
+	urls, err := h.service.GetUserURLs(userID)
+	if err != nil {
+		logger.Sugar.Errorw("Failed to get user URLs", "error", err, "userID", userID)
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+
+	if len(urls) == 0 {
+		w.WriteHeader(http.StatusNoContent)
+		return
+	}
+
+	jsonData, err := json.MarshalIndent(urls, "", "   ")
+	if err != nil {
+		http.Error(w, "Error creating JSON response: "+err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set("Content-Length", strconv.Itoa(len(jsonData)))
+	w.WriteHeader(http.StatusOK)
 	w.Write(jsonData)
 }
