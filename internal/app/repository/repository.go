@@ -13,4 +13,7 @@ type Repository interface {
 	Fetch(id string) (string, error)
 	FindByURL(url string) (string, bool)
 	SaveBatch(pairs []models.URLPair) ([]models.URLPair, error)
+	SaveWithUser(id string, url string, userID string) error
+	GetUserURLs(userID string) ([]models.UserURL, error)
+	SaveBatchWithUser(pairs []models.URLPair) ([]models.URLPair, error)
 }

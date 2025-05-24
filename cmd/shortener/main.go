@@ -29,7 +29,7 @@ func main() {
 	urlService := service.NewURLService(repo, cfg)
 	healthService := service.NewHealthService(pgStorage)
 
-	r := router.NewRouter(urlService, healthService)
+	r := router.NewRouter(urlService, healthService, cfg)
 
 	gzipRouter := middleware.WithGzip(r)
 	loggerRouter := middleware.WithLogging(gzipRouter, logger.Sugar)

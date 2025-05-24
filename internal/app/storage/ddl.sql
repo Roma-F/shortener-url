@@ -21,6 +21,16 @@ INSERT INTO urls (short_url, original_url)
 VALUES ($1, $2)
 ON CONFLICT (original_url) DO NOTHING;
 
+-- name: save-url-with-user
+INSERT INTO urls (short_url, original_url, user_id)
+VALUES ($1, $2, $3)
+ON CONFLICT (short_url) DO NOTHING;
+
+-- name: save-url-with-user-check-conflict
+INSERT INTO urls (short_url, original_url, user_id)
+VALUES ($1, $2, $3)
+ON CONFLICT (original_url) DO NOTHING;
+
 -- name: fetch-url
 SELECT original_url FROM urls WHERE short_url = $1;
 
@@ -29,3 +39,6 @@ SELECT short_url FROM urls WHERE original_url = $1 LIMIT 1;
 
 -- name: check-short-url-exists
 SELECT COUNT(*) FROM urls WHERE short_url = $1;
+
+-- name: get-user-urls
+SELECT short_url, original_url FROM urls WHERE user_id = $1 ORDER BY id;

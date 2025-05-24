@@ -36,9 +36,12 @@ func (p *PostgresStorage) SaveBatch(pairs []models.URLPair) ([]models.URLPair, e
 		return nil, fmt.Errorf("failed to start transaction: %w", err)
 	}
 
+	committed := false
 	defer func() {
-		if err := tx.Rollback(); err != nil {
-			logger.Sugar.Errorw("Failed to rollback transaction", "error", err)
+		if !committed {
+			if err := tx.Rollback(); err != nil {
+				logger.Sugar.Errorw("Failed to rollback transaction", "error", err)
+			}
 		}
 	}()
 
@@ -64,6 +67,48 @@ func (p *PostgresStorage) SaveBatch(pairs []models.URLPair) ([]models.URLPair, e
 		return nil, fmt.Errorf("failed to commit transaction: %w", err)
 	}
 
+	committed = true
+	return pairs, nil
+}
+
+func (p *PostgresStorage) SaveBatchWithUser(pairs []models.URLPair) ([]models.URLPair, error) {
+	tx, err := p.db.Beginx()
+	if err != nil {
+		return nil, fmt.Errorf("failed to start transaction: %w", err)
+	}
+
+	committed := false
+	defer func() {
+		if !committed {
+			if err := tx.Rollback(); err != nil {
+				logger.Sugar.Errorw("Failed to rollback transaction", "error", err)
+			}
+		}
+	}()
+
+	stmt, err := tx.Preparex(getQuery("save-url-with-user"))
+	if err != nil {
+		return nil, fmt.Errorf("failed to prepare statement: %w", err)
+	}
+
+	defer func() {
+		if err := stmt.Close(); err != nil {
+			logger.Sugar.Errorw("Failed close statement", "error", err)
+		}
+	}()
+
+	for _, pair := range pairs {
+		_, err := stmt.Exec(pair.ShortURL, pair.OriginalURL, pair.UserID)
+		if err != nil {
+			return nil, fmt.Errorf("failed to save URL pair: %w", err)
+		}
+	}
+
+	if err := tx.Commit(); err != nil {
+		return nil, fmt.Errorf("failed to commit transaction: %w", err)
+	}
+
+	committed = true
 	return pairs, nil
 }
 
@@ -105,6 +150,47 @@ func (p *PostgresStorage) Save(shortURL string, originalURL string) error {
 	}
 
 	return nil
+}
+
+func (p *PostgresStorage) SaveWithUser(shortURL string, originalURL string, userID string) error {
+	_, err := p.db.Exec(getQuery("save-url-with-user-check-conflict"), shortURL, originalURL, userID)
+	if err != nil {
+		return fmt.Errorf("error saving URL: %w", err)
+	}
+	var count int
+	err = p.db.QueryRow(getQuery("check-short-url-exists"), shortURL).Scan(&count)
+	if err != nil {
+		return fmt.Errorf("error checking URL record: %w", err)
+	}
+
+	if count == 0 {
+		return fmt.Errorf("duplicate original URL: %w", repository.ErrURLConflict)
+	}
+
+	return nil
+}
+
+func (p *PostgresStorage) GetUserURLs(userID string) ([]models.UserURL, error) {
+	rows, err := p.db.Query(getQuery("get-user-urls"), userID)
+	if err != nil {
+		return nil, fmt.Errorf("error fetching user URLs: %w", err)
+	}
+	defer rows.Close()
+
+	var urls []models.UserURL
+	for rows.Next() {
+		var url models.UserURL
+		if err := rows.Scan(&url.ShortURL, &url.OriginalURL); err != nil {
+			return nil, fmt.Errorf("error scanning URL: %w", err)
+		}
+		urls = append(urls, url)
+	}
+
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("error iterating over rows: %w", err)
+	}
+
+	return urls, nil
 }
 
 func parseQueries(queriesText string) map[string]string {
