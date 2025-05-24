@@ -168,3 +168,100 @@ func TestURLHandler_ShortenURLJSON_Success(t *testing.T) {
 	expectedPrefix := "http://localhost:8080/"
 	assert.True(t, strings.HasPrefix(jsonResp.Result, expectedPrefix), "short URL should start with %s", expectedPrefix)
 }
+
+func TestURLHandler_ShortenURLBatch_Success(t *testing.T) {
+	handler := setupHandler()
+
+	payload := `[
+		{
+			"correlation_id": "1",
+			"original_url": "https://example1.com"
+		},
+		{
+			"correlation_id": "2",
+			"original_url": "https://example2.com"
+		}
+	]`
+	req := httptest.NewRequest(http.MethodPost, "/api/shorten/batch", strings.NewReader(payload))
+	req.Header.Set("Content-Type", "application/json")
+	req.Host = "example.com"
+
+	rr := httptest.NewRecorder()
+	handler.ShortenURLBatch(rr, req)
+
+	resp := rr.Result()
+	defer resp.Body.Close()
+
+	assert.Equal(t, http.StatusCreated, resp.StatusCode)
+
+	body, err := io.ReadAll(resp.Body)
+	assert.NoError(t, err)
+
+	var jsonResp []models.ShortenedURLItem
+	err = json.Unmarshal(body, &jsonResp)
+	assert.NoError(t, err)
+
+	assert.Equal(t, 2, len(jsonResp))
+	assert.Equal(t, "1", jsonResp[0].CorrelationID)
+	assert.Equal(t, "2", jsonResp[1].CorrelationID)
+
+	expectedPrefix := "http://localhost:8080/"
+	assert.True(t, strings.HasPrefix(jsonResp[0].ShortURL, expectedPrefix))
+	assert.True(t, strings.HasPrefix(jsonResp[1].ShortURL, expectedPrefix))
+}
+
+func TestURLHandler_ShortenURLBatch_EmptyBatch(t *testing.T) {
+	handler := setupHandler()
+
+	payload := `[]`
+	req := httptest.NewRequest(http.MethodPost, "/api/shorten/batch", strings.NewReader(payload))
+	req.Header.Set("Content-Type", "application/json")
+	req.Host = "example.com"
+
+	rr := httptest.NewRecorder()
+	handler.ShortenURLBatch(rr, req)
+
+	resp := rr.Result()
+	defer resp.Body.Close()
+
+	assert.Equal(t, http.StatusBadRequest, resp.StatusCode)
+}
+
+func TestURLHandler_ShortenURLBatch_InvalidContentType(t *testing.T) {
+	handler := setupHandler()
+
+	payload := `[
+		{
+			"correlation_id": "1",
+			"original_url": "https://example1.com"
+		}
+	]`
+	req := httptest.NewRequest(http.MethodPost, "/api/shorten/batch", strings.NewReader(payload))
+	req.Header.Set("Content-Type", "text/plain")
+	req.Host = "example.com"
+
+	rr := httptest.NewRecorder()
+	handler.ShortenURLBatch(rr, req)
+
+	resp := rr.Result()
+	defer resp.Body.Close()
+
+	assert.Equal(t, http.StatusBadRequest, resp.StatusCode)
+}
+
+func TestURLHandler_ShortenURLBatch_InvalidJSON(t *testing.T) {
+	handler := setupHandler()
+
+	payload := `invalid json`
+	req := httptest.NewRequest(http.MethodPost, "/api/shorten/batch", strings.NewReader(payload))
+	req.Header.Set("Content-Type", "application/json")
+	req.Host = "example.com"
+
+	rr := httptest.NewRecorder()
+	handler.ShortenURLBatch(rr, req)
+
+	resp := rr.Result()
+	defer resp.Body.Close()
+
+	assert.Equal(t, http.StatusBadRequest, resp.StatusCode)
+}

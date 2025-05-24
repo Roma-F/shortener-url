@@ -7,14 +7,15 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"strconv"
 	"sync"
 
 	"github.com/Roma-F/shortener-url/internal/app/logger"
+	"github.com/Roma-F/shortener-url/internal/app/models"
+	"github.com/Roma-F/shortener-url/internal/app/repository"
 )
 
 type URLRecord struct {
-	UUID        string `json:"uuid"`
+	ID          int    `json:"id"`
 	ShortURL    string `json:"short_url"`
 	OriginalURL string `json:"original_url"`
 }
@@ -49,7 +50,6 @@ func (m *MemoryStorage) LoadFromFile() error {
 	}
 	_, err := os.Stat(m.filePath)
 	if os.IsNotExist(err) {
-
 		return nil
 	} else if err != nil {
 		return fmt.Errorf("error checking file: %w", err)
@@ -79,8 +79,8 @@ func (m *MemoryStorage) LoadFromFile() error {
 
 		m.records[record.ShortURL] = record
 
-		if id, err := strconv.Atoi(record.UUID); err == nil && id > maxID {
-			maxID = id
+		if record.ID > maxID {
+			maxID = record.ID
 		}
 	}
 
@@ -149,11 +149,15 @@ func (m *MemoryStorage) Save(shortURL string, originalURL string) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
-	m.lastID++
-	id := fmt.Sprintf("%d", m.lastID)
+	for _, record := range m.records {
+		if record.OriginalURL == originalURL {
+			return repository.ErrURLConflict
+		}
+	}
 
+	m.lastID++
 	record := URLRecord{
-		UUID:        id,
+		ID:          m.lastID,
 		ShortURL:    shortURL,
 		OriginalURL: originalURL,
 	}
@@ -185,4 +189,26 @@ func (m *MemoryStorage) FindByURL(originalURL string) (string, bool) {
 		}
 	}
 	return "", false
+}
+
+func (m *MemoryStorage) SaveBatch(pairs []models.URLPair) ([]models.URLPair, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	for _, pair := range pairs {
+		m.lastID++
+		record := URLRecord{
+			ID:          m.lastID,
+			ShortURL:    pair.ShortURL,
+			OriginalURL: pair.OriginalURL,
+		}
+
+		m.records[pair.ShortURL] = record
+	}
+
+	if err := m.SaveToFile(); err != nil {
+		return nil, fmt.Errorf("failed to save batch to file: %w", err)
+	}
+
+	return pairs, nil
 }

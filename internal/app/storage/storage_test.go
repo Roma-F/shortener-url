@@ -5,6 +5,7 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/Roma-F/shortener-url/internal/app/models"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -26,6 +27,7 @@ func TestMemoryStorage_Save(t *testing.T) {
 
 	assert.True(t, ok)
 	assert.Equal(t, originalURL, record.OriginalURL)
+	assert.Equal(t, 1, record.ID)
 }
 
 func TestMemoryStorage_Fetch(t *testing.T) {
@@ -33,7 +35,7 @@ func TestMemoryStorage_Fetch(t *testing.T) {
 
 	ms.mu.Lock()
 	ms.records[tID] = URLRecord{
-		UUID:        "1",
+		ID:          1,
 		ShortURL:    tID,
 		OriginalURL: originalURL,
 	}
@@ -59,7 +61,7 @@ func TestMemoryStorage_FindByURL(t *testing.T) {
 
 	ms.mu.Lock()
 	ms.records[tID] = URLRecord{
-		UUID:        "1",
+		ID:          1,
 		ShortURL:    tID,
 		OriginalURL: originalURL,
 	}
@@ -108,8 +110,8 @@ func TestMemoryStorage_LoadFromFile(t *testing.T) {
 
 	tempFile := filepath.Join(tempDir, "urls.json")
 
-	testData := `{"uuid":"1","short_url":"short1","original_url":"http://example1.com"}
-{"uuid":"2","short_url":"short2","original_url":"http://example2.com"}`
+	testData := `{"id":1,"short_url":"short1","original_url":"http://example1.com"}
+{"id":2,"short_url":"short2","original_url":"http://example2.com"}`
 	err = os.WriteFile(tempFile, []byte(testData), 0644)
 	require.NoError(t, err)
 
@@ -129,14 +131,11 @@ func TestMemoryStorage_LoadFromFile(t *testing.T) {
 }
 
 func TestMemoryStorage_FilePathEmpty(t *testing.T) {
-	// Создаем хранилище без пути к файлу
 	ms := NewMemoryStorage("")
 
-	// Добавляем URL
 	err := ms.Save("short1", "http://example1.com")
 	assert.NoError(t, err)
 
-	// Все операции должны выполняться успешно, даже если путь к файлу не указан
 	url, err := ms.Fetch("short1")
 	assert.NoError(t, err)
 	assert.Equal(t, "http://example1.com", url)
@@ -158,4 +157,68 @@ func TestMemoryStorage_FilePersistence(t *testing.T) {
 	url, err := ms2.Fetch("short1")
 	assert.NoError(t, err)
 	assert.Equal(t, "http://example1.com", url)
+}
+
+func TestMemoryStorage_SaveBatch(t *testing.T) {
+	ms := NewMemoryStorage("")
+
+	pairs := []models.URLPair{
+		{
+			OriginalURL:   "http://example1.com",
+			ShortURL:      "short1",
+			CorrelationID: "1",
+		},
+		{
+			OriginalURL:   "http://example2.com",
+			ShortURL:      "short2",
+			CorrelationID: "2",
+		},
+	}
+
+	savedPairs, err := ms.SaveBatch(pairs)
+	assert.NoError(t, err)
+	assert.Equal(t, pairs, savedPairs)
+
+	url1, err := ms.Fetch("short1")
+	assert.NoError(t, err)
+	assert.Equal(t, "http://example1.com", url1)
+
+	url2, err := ms.Fetch("short2")
+	assert.NoError(t, err)
+	assert.Equal(t, "http://example2.com", url2)
+}
+
+func TestMemoryStorage_SaveBatch_WithFile(t *testing.T) {
+	tempDir, err := os.MkdirTemp("", "url_test")
+	require.NoError(t, err)
+	defer os.RemoveAll(tempDir)
+
+	tempFile := filepath.Join(tempDir, "urls.json")
+	ms := NewMemoryStorage(tempFile)
+
+	pairs := []models.URLPair{
+		{
+			OriginalURL:   "http://example1.com",
+			ShortURL:      "short1",
+			CorrelationID: "1",
+		},
+		{
+			OriginalURL:   "http://example2.com",
+			ShortURL:      "short2",
+			CorrelationID: "2",
+		},
+	}
+
+	savedPairs, err := ms.SaveBatch(pairs)
+	assert.NoError(t, err)
+	assert.Equal(t, pairs, savedPairs)
+
+	content, err := os.ReadFile(tempFile)
+	require.NoError(t, err)
+
+	contentStr := string(content)
+	assert.Contains(t, contentStr, "http://example1.com")
+	assert.Contains(t, contentStr, "http://example2.com")
+	assert.Contains(t, contentStr, "short1")
+	assert.Contains(t, contentStr, "short2")
 }
