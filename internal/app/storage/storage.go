@@ -19,6 +19,7 @@ type URLRecord struct {
 	ShortURL    string `json:"short_url"`
 	OriginalURL string `json:"original_url"`
 	UserID      string `json:"user_id"`
+	IsDeleted   bool   `json:"is_deleted"`
 }
 
 type MemoryStorage struct {
@@ -218,7 +219,39 @@ func (m *MemoryStorage) Fetch(shortURL string) (string, error) {
 		return "", errors.New("short URL not found")
 	}
 
+	if record.IsDeleted {
+		return "", repository.ErrURLDeleted
+	}
+
 	return record.OriginalURL, nil
+}
+
+func (m *MemoryStorage) MarkURLsAsDeleted(userID string, shortURLs []string) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	for _, shortURL := range shortURLs {
+		if record, exists := m.records[shortURL]; exists {
+			if record.UserID == userID {
+				record.IsDeleted = true
+				m.records[shortURL] = record
+			}
+		}
+	}
+
+	return m.SaveToFile()
+}
+
+func (m *MemoryStorage) IsURLDeleted(shortURL string) (bool, error) {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+
+	record, ok := m.records[shortURL]
+	if !ok {
+		return false, errors.New("short URL not found")
+	}
+
+	return record.IsDeleted, nil
 }
 
 func (m *MemoryStorage) FindByURL(originalURL string) (string, bool) {

@@ -25,12 +25,20 @@ type URLShortener interface {
 	GetUserURLs(userID string) ([]models.UserURL, error)
 }
 
-type URLHandler struct {
-	service URLShortener
+type DeleteService interface {
+	AddDeleteTasks(userID string, shortURLs []string)
 }
 
-func NewURLHandler(svc URLShortener) *URLHandler {
-	return &URLHandler{service: svc}
+type URLHandler struct {
+	service       URLShortener
+	deleteService DeleteService
+}
+
+func NewURLHandler(svc URLShortener, deleteService DeleteService) *URLHandler {
+	return &URLHandler{
+		service:       svc,
+		deleteService: deleteService,
+	}
 }
 
 func (h *URLHandler) ShortenURLTextPlain(w http.ResponseWriter, r *http.Request) {
@@ -153,6 +161,10 @@ func (h *URLHandler) GetMainURL(w http.ResponseWriter, r *http.Request) {
 
 	mainURL, err := h.service.FetchOriginalURL(urlID)
 	if err != nil {
+		if errors.Is(err, repository.ErrURLDeleted) {
+			w.WriteHeader(http.StatusGone)
+			return
+		}
 		w.WriteHeader(http.StatusNotFound)
 		return
 	}
@@ -242,4 +254,60 @@ func (h *URLHandler) GetUserURLs(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Length", strconv.Itoa(len(jsonData)))
 	w.WriteHeader(http.StatusOK)
 	w.Write(jsonData)
+}
+
+func (h *URLHandler) DeleteUserURLs(w http.ResponseWriter, r *http.Request) {
+	userID := auth.GetUserIDFromContext(r.Context())
+	if userID == "" {
+		w.WriteHeader(http.StatusUnauthorized)
+		return
+	}
+
+	contentType := r.Header.Get("Content-Type")
+	if contentType != "" && !strings.HasPrefix(contentType, "application/json") {
+		http.Error(w, "Content-Type must be application/json", http.StatusBadRequest)
+		return
+	}
+
+	body, err := io.ReadAll(r.Body)
+	if err != nil {
+		http.Error(w, "Error reading request body", http.StatusInternalServerError)
+		return
+	}
+
+	defer func() {
+		if err := r.Body.Close(); err != nil {
+			logger.Sugar.Errorw("Failed to close request body", "error", err)
+		}
+	}()
+
+	var shortURLs models.DeleteURLsRequest
+	if err := json.Unmarshal(body, &shortURLs); err != nil {
+		logger.Sugar.Debug("cannot decode request JSON body", zap.Error(err))
+		http.Error(w, "Invalid JSON payload", http.StatusBadRequest)
+		return
+	}
+
+	if len(shortURLs) == 0 {
+		http.Error(w, "Empty URL list", http.StatusBadRequest)
+		return
+	}
+
+	cleanShortURLs := make([]string, len(shortURLs))
+	for i, url := range shortURLs {
+		if strings.Contains(url, "/") {
+			parts := strings.Split(url, "/")
+			cleanShortURLs[i] = parts[len(parts)-1]
+		} else {
+			cleanShortURLs[i] = url
+		}
+	}
+
+	h.deleteService.AddDeleteTasks(userID, cleanShortURLs)
+
+	logger.Sugar.Infow("Accepted delete request",
+		"userID", userID,
+		"urlCount", len(cleanShortURLs))
+
+	w.WriteHeader(http.StatusAccepted)
 }

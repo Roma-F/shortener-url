@@ -114,13 +114,75 @@ func (p *PostgresStorage) SaveBatchWithUser(pairs []models.URLPair) ([]models.UR
 
 func (p *PostgresStorage) Fetch(shortURL string) (string, error) {
 	var originalURL string
+	var isDeleted bool
 
-	err := p.db.QueryRow(getQuery("fetch-url"), shortURL).Scan(&originalURL)
+	err := p.db.QueryRow(getQuery("fetch-url-with-deleted"), shortURL).Scan(&originalURL, &isDeleted)
 	if err != nil {
 		return "", fmt.Errorf("short URL not found: %w", err)
 	}
 
+	if isDeleted {
+		return "", repository.ErrURLDeleted
+	}
+
 	return originalURL, nil
+}
+
+func (p *PostgresStorage) MarkURLsAsDeleted(userID string, shortURLs []string) error {
+	if len(shortURLs) == 0 {
+		return nil
+	}
+
+	tx, err := p.db.Beginx()
+	if err != nil {
+		return fmt.Errorf("failed to start transaction: %w", err)
+	}
+
+	committed := false
+	defer func() {
+		if !committed {
+			if err := tx.Rollback(); err != nil {
+				logger.Sugar.Errorw("Failed to rollback transaction", "error", err)
+			}
+		}
+	}()
+
+	stmt, err := tx.Preparex(getQuery("mark-url-as-deleted"))
+	if err != nil {
+		return fmt.Errorf("failed to prepare statement: %w", err)
+	}
+
+	defer func() {
+		if err := stmt.Close(); err != nil {
+			logger.Sugar.Errorw("Failed to close statement", "error", err)
+		}
+	}()
+
+	for _, shortURL := range shortURLs {
+		_, err := stmt.Exec(userID, shortURL)
+		if err != nil {
+			logger.Sugar.Warnw("Failed to mark URL as deleted",
+				"userID", userID,
+				"shortURL", shortURL,
+				"error", err)
+		}
+	}
+
+	if err := tx.Commit(); err != nil {
+		return fmt.Errorf("failed to commit transaction: %w", err)
+	}
+
+	committed = true
+	return nil
+}
+
+func (p *PostgresStorage) IsURLDeleted(shortURL string) (bool, error) {
+	var isDeleted bool
+	err := p.db.QueryRow(getQuery("check-url-deleted"), shortURL).Scan(&isDeleted)
+	if err != nil {
+		return false, fmt.Errorf("failed to check URL deletion status: %w", err)
+	}
+	return isDeleted, nil
 }
 
 func (p *PostgresStorage) FindByURL(originalURL string) (string, bool) {

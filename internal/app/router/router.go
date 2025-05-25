@@ -10,10 +10,10 @@ import (
 	"github.com/go-chi/chi/v5"
 )
 
-func NewRouter(urlService *service.URLService, healthService *service.HealthService, cfg *config.ServerOption) http.Handler {
+func NewRouter(urlService *service.URLService, healthService *service.HealthService, deleteService *service.DeleteService, cfg *config.ServerOption) http.Handler {
 	r := chi.NewRouter()
 
-	URLHandler := handler.NewURLHandler(urlService)
+	URLHandler := handler.NewURLHandler(urlService, deleteService)
 	LiveHandler := handler.NewPingHandler(healthService)
 
 	r.Use(middleware.WithAuthentication(cfg.AuthSecretKey))
@@ -32,6 +32,7 @@ func NewRouter(urlService *service.URLService, healthService *service.HealthServ
 
 		r.Route("/user", func(r chi.Router) {
 			r.Get("/urls", URLHandler.GetUserURLs)
+			r.Delete("/urls", URLHandler.DeleteUserURLs)
 		})
 	})
 

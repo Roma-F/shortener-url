@@ -23,9 +23,17 @@ type URLPair struct {
 	ShortURL      string
 	CorrelationID string
 	UserID        string
+	IsDeleted     bool
 }
 
 type UserURL struct {
 	ShortURL    string `json:"short_url"`
 	OriginalURL string `json:"original_url"`
+}
+
+type DeleteURLsRequest []string
+
+type DeleteTask struct {
+	UserID   string
+	ShortURL string
 }
