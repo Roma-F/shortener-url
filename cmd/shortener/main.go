@@ -30,6 +30,9 @@ func main() {
 	healthService := service.NewHealthService(pgStorage)
 	deleteService := service.NewDeleteService(repo)
 
+	ctx := context.Background()
+	deleteService.Start(ctx)
+
 	r := router.NewRouter(urlService, healthService, deleteService, cfg)
 
 	gzipRouter := middleware.WithGzip(r)

@@ -46,22 +46,26 @@ func TestVerifyAndExtractUserID(t *testing.T) {
 	userID := "test-user-123"
 	signed := SignUserID(userID, testSecretKey)
 
-	extractedUserID, valid := VerifyAndExtractUserID(signed, testSecretKey)
-	assert.True(t, valid)
+	extractedUserID, err := VerifyAndExtractUserID(signed, testSecretKey)
+	assert.NoError(t, err)
 	assert.Equal(t, userID, extractedUserID)
 
-	_, valid = VerifyAndExtractUserID(signed, "wrong-key")
-	assert.False(t, valid)
+	_, err = VerifyAndExtractUserID(signed, "wrong-key")
+	assert.Error(t, err)
+	assert.ErrorIs(t, err, ErrInvalidSignature)
 
 	corruptedSigned := signed + "corrupted"
-	_, valid = VerifyAndExtractUserID(corruptedSigned, testSecretKey)
-	assert.False(t, valid)
+	_, err = VerifyAndExtractUserID(corruptedSigned, testSecretKey)
+	assert.Error(t, err)
+	assert.ErrorIs(t, err, ErrInvalidSignature)
 
-	_, valid = VerifyAndExtractUserID("no-dot-here", testSecretKey)
-	assert.False(t, valid)
+	_, err = VerifyAndExtractUserID("no-dot-here", testSecretKey)
+	assert.Error(t, err)
+	assert.ErrorIs(t, err, ErrInvalidFormat)
 
-	_, valid = VerifyAndExtractUserID("too.many.dots.here", testSecretKey)
-	assert.False(t, valid)
+	_, err = VerifyAndExtractUserID("too.many.dots.here", testSecretKey)
+	assert.Error(t, err)
+	assert.ErrorIs(t, err, ErrInvalidFormat)
 }
 
 func TestSetAndGetUserCookie(t *testing.T) {
@@ -85,14 +89,17 @@ func TestSetAndGetUserCookie(t *testing.T) {
 	req := httptest.NewRequest("GET", "/", nil)
 	req.AddCookie(cookie)
 
-	extractedUserID := GetUserIDFromCookie(req, testSecretKey)
+	extractedUserID, err := GetUserIDFromCookie(req, testSecretKey)
+	assert.NoError(t, err)
 	assert.Equal(t, userID, extractedUserID)
 }
 
 func TestGetUserIDFromCookie_NoCookie(t *testing.T) {
 	req := httptest.NewRequest("GET", "/", nil)
 
-	userID := GetUserIDFromCookie(req, testSecretKey)
+	userID, err := GetUserIDFromCookie(req, testSecretKey)
+	assert.Error(t, err)
+	assert.ErrorIs(t, err, ErrCookieNotFound)
 	assert.Empty(t, userID)
 }
 
@@ -103,7 +110,8 @@ func TestGetUserIDFromCookie_InvalidCookie(t *testing.T) {
 		Value: "invalid-cookie-value",
 	})
 
-	userID := GetUserIDFromCookie(req, testSecretKey)
+	userID, err := GetUserIDFromCookie(req, testSecretKey)
+	assert.Error(t, err)
 	assert.Empty(t, userID)
 }
 
@@ -120,7 +128,8 @@ func TestGetUserIDFromCookie_WrongSecret(t *testing.T) {
 	req := httptest.NewRequest("GET", "/", nil)
 	req.AddCookie(cookie)
 
-	extractedUserID := GetUserIDFromCookie(req, "wrong-secret")
+	extractedUserID, err := GetUserIDFromCookie(req, "wrong-secret")
+	assert.Error(t, err)
 	assert.Empty(t, extractedUserID)
 }
 
@@ -128,7 +137,8 @@ func TestContextOperations(t *testing.T) {
 	userID := "test-user-123"
 	ctx := context.Background()
 
-	ctxWithUser := SetUserIDToContext(ctx, userID)
+	ctxWithUser, err := SetUserIDToContext(ctx, userID)
+	assert.NoError(t, err)
 	assert.NotEqual(t, ctx, ctxWithUser)
 
 	extractedUserID := GetUserIDFromContext(ctxWithUser)
@@ -136,6 +146,10 @@ func TestContextOperations(t *testing.T) {
 
 	emptyUserID := GetUserIDFromContext(ctx)
 	assert.Empty(t, emptyUserID)
+
+	_, err = SetUserIDToContext(ctx, "")
+	assert.Error(t, err)
+	assert.ErrorIs(t, err, ErrEmptyUserID)
 
 	type testKeyType string
 	const testKey testKeyType = "test-key"

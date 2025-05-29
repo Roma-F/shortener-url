@@ -18,7 +18,9 @@ import (
 
 type MockDeleteService struct{}
 
-func (m *MockDeleteService) AddDeleteTasks(userID string, shortURLs []string) {}
+func (m *MockDeleteService) AddDeleteTasks(userID string, shortURLs []string) error {
+	return nil
+}
 
 func setupHandler() *URLHandler {
 	cfg := &config.ServerOption{

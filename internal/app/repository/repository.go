@@ -18,5 +18,4 @@ type Repository interface {
 	GetUserURLs(userID string) ([]models.UserURL, error)
 	SaveBatchWithUser(pairs []models.URLPair) ([]models.URLPair, error)
 	MarkURLsAsDeleted(userID string, shortURLs []string) error
-	IsURLDeleted(shortURL string) (bool, error)
 }

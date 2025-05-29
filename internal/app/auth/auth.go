@@ -7,6 +7,8 @@ import (
 	"crypto/sha256"
 	"encoding/base64"
 	"encoding/hex"
+	"errors"
+	"fmt"
 	"net/http"
 	"strings"
 	"time"
@@ -23,19 +25,25 @@ type UserIDKeyType string
 
 const UserIDKey UserIDKeyType = "userID"
 
-func GetUserIDFromCookie(r *http.Request, secretKey string) string {
+var (
+	ErrCookieNotFound   = errors.New("user cookie not found")
+	ErrInvalidSignature = errors.New("invalid cookie signature")
+	ErrEmptyUserID      = errors.New("userID cannot be empty")
+	ErrInvalidFormat    = errors.New("invalid signed userID format")
+)
+
+func GetUserIDFromCookie(r *http.Request, secretKey string) (string, error) {
 	cookie, err := r.Cookie(UserCookieName)
 	if err != nil {
-		return ""
+		return "", ErrCookieNotFound
 	}
 
-	userID, valid := VerifyAndExtractUserID(cookie.Value, secretKey)
-	if !valid {
-		logger.Sugar.Debugw("Invalid cookie signature", "cookie", cookie.Value)
-		return ""
+	userID, err := VerifyAndExtractUserID(cookie.Value, secretKey)
+	if err != nil {
+		return "", fmt.Errorf("cookie verification failed: %w", err)
 	}
 
-	return userID
+	return userID, nil
 }
 
 func SetUserCookie(w http.ResponseWriter, userID, secretKey string) {
@@ -70,16 +78,20 @@ func SignUserID(userID, secretKey string) string {
 	return userID + "." + signature
 }
 
-func VerifyAndExtractUserID(signedUserID, secretKey string) (string, bool) {
+func VerifyAndExtractUserID(signedUserID, secretKey string) (string, error) {
 	parts := strings.Split(signedUserID, ".")
 	if len(parts) != 2 {
-		return "", false
+		return "", ErrInvalidFormat
 	}
 
 	userID := parts[0]
 	expectedSigned := SignUserID(userID, secretKey)
 
-	return userID, hmac.Equal([]byte(signedUserID), []byte(expectedSigned))
+	if !hmac.Equal([]byte(signedUserID), []byte(expectedSigned)) {
+		return "", ErrInvalidSignature
+	}
+
+	return userID, nil
 }
 
 func GetUserIDFromContext(ctx context.Context) string {
@@ -90,6 +102,9 @@ func GetUserIDFromContext(ctx context.Context) string {
 	return userID
 }
 
-func SetUserIDToContext(ctx context.Context, userID string) context.Context {
-	return context.WithValue(ctx, UserIDKey, userID)
+func SetUserIDToContext(ctx context.Context, userID string) (context.Context, error) {
+	if userID == "" {
+		return ctx, ErrEmptyUserID
+	}
+	return context.WithValue(ctx, UserIDKey, userID), nil
 }

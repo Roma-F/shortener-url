@@ -33,6 +33,7 @@ func NewRouter(urlService *service.URLService, healthService *service.HealthServ
 		r.Route("/user", func(r chi.Router) {
 			r.Get("/urls", URLHandler.GetUserURLs)
 			r.Delete("/urls", URLHandler.DeleteUserURLs)
+			r.Get("/urls/{id}/status", URLHandler.GetURLStatus)
 		})
 	})
 

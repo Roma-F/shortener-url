@@ -242,18 +242,6 @@ func (m *MemoryStorage) MarkURLsAsDeleted(userID string, shortURLs []string) err
 	return m.SaveToFile()
 }
 
-func (m *MemoryStorage) IsURLDeleted(shortURL string) (bool, error) {
-	m.mu.RLock()
-	defer m.mu.RUnlock()
-
-	record, ok := m.records[shortURL]
-	if !ok {
-		return false, errors.New("short URL not found")
-	}
-
-	return record.IsDeleted, nil
-}
-
 func (m *MemoryStorage) FindByURL(originalURL string) (string, bool) {
 	m.mu.RLock()
 	defer m.mu.RUnlock()

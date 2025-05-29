@@ -2,12 +2,12 @@ package service
 
 import (
 	"context"
+	"errors"
 	"sync"
 	"time"
 
 	"github.com/Roma-F/shortener-url/internal/app/logger"
 	"github.com/Roma-F/shortener-url/internal/app/models"
-	"github.com/Roma-F/shortener-url/internal/app/repository"
 )
 
 const (
@@ -16,42 +16,53 @@ const (
 	deleteChannelSize   = 1000
 )
 
+var (
+	ErrDeleteChannelFull    = errors.New("delete channel is full")
+	ErrPartialDeleteFailure = errors.New("some delete tasks failed")
+)
+
+type Repository interface {
+	MarkURLsAsDeleted(userID string, shortURLs []string) error
+}
+
 type DeleteService struct {
-	repo       repository.Repository
+	repo       Repository
 	deleteChan chan models.DeleteTask
 	batchChan  chan []models.DeleteTask
-	ctx        context.Context
 	cancel     context.CancelFunc
 	wg         sync.WaitGroup
 }
 
-func NewDeleteService(repo repository.Repository) *DeleteService {
-	ctx, cancel := context.WithCancel(context.Background())
-
+func NewDeleteService(repo Repository) *DeleteService {
 	service := &DeleteService{
 		repo:       repo,
 		deleteChan: make(chan models.DeleteTask, deleteChannelSize),
 		batchChan:  make(chan []models.DeleteTask, 10),
-		ctx:        ctx,
-		cancel:     cancel,
 	}
-
-	service.startWorkers()
 
 	return service
 }
 
-func (ds *DeleteService) startWorkers() {
-	ds.wg.Add(1)
-	go ds.batchWorker()
-
-	ds.wg.Add(1)
-	go ds.deleteWorker()
+func (ds *DeleteService) Start(ctx context.Context) {
+	ctx, ds.cancel = context.WithCancel(ctx)
+	ds.startWorkers(ctx)
 }
 
-func (ds *DeleteService) batchWorker() {
-	defer ds.wg.Done()
+func (ds *DeleteService) startWorkers(ctx context.Context) {
+	ds.wg.Add(2)
 
+	go func() {
+		defer ds.wg.Done()
+		ds.batchWorker(ctx)
+	}()
+
+	go func() {
+		defer ds.wg.Done()
+		ds.deleteWorker(ctx)
+	}()
+}
+
+func (ds *DeleteService) batchWorker(ctx context.Context) {
 	batch := make([]models.DeleteTask, 0, deleteBatchSize)
 	ticker := time.NewTicker(deleteFlushInterval)
 	defer ticker.Stop()
@@ -64,7 +75,7 @@ func (ds *DeleteService) batchWorker() {
 			select {
 			case ds.batchChan <- batchCopy:
 				logger.Sugar.Debugw("Sent delete batch", "size", len(batchCopy))
-			case <-ds.ctx.Done():
+			case <-ctx.Done():
 				return
 			}
 
@@ -84,7 +95,7 @@ func (ds *DeleteService) batchWorker() {
 		case <-ticker.C:
 			flush()
 
-		case <-ds.ctx.Done():
+		case <-ctx.Done():
 			flush()
 			close(ds.batchChan)
 			return
@@ -92,16 +103,14 @@ func (ds *DeleteService) batchWorker() {
 	}
 }
 
-func (ds *DeleteService) deleteWorker() {
-	defer ds.wg.Done()
-
+func (ds *DeleteService) deleteWorker(ctx context.Context) {
 	for {
 		select {
 		case batch := <-ds.batchChan:
 			if len(batch) > 0 {
 				ds.processBatch(batch)
 			}
-		case <-ds.ctx.Done():
+		case <-ctx.Done():
 			return
 		}
 	}
@@ -130,7 +139,7 @@ func (ds *DeleteService) processBatch(batch []models.DeleteTask) {
 	}
 }
 
-func (ds *DeleteService) AddDeleteTask(userID, shortURL string) {
+func (ds *DeleteService) AddDeleteTask(userID, shortURL string) error {
 	task := models.DeleteTask{
 		UserID:   userID,
 		ShortURL: shortURL,
@@ -139,20 +148,38 @@ func (ds *DeleteService) AddDeleteTask(userID, shortURL string) {
 	select {
 	case ds.deleteChan <- task:
 		logger.Sugar.Debugw("Added delete task", "userID", userID, "shortURL", shortURL)
+		return nil
 	default:
-		logger.Sugar.Warnw("Delete channel is full, dropping task", "userID", userID, "shortURL", shortURL)
+		logger.Sugar.Warnw("Delete channel is full, task rejected", "userID", userID, "shortURL", shortURL)
+		return ErrDeleteChannelFull
 	}
 }
 
-func (ds *DeleteService) AddDeleteTasks(userID string, shortURLs []string) {
+func (ds *DeleteService) AddDeleteTasks(userID string, shortURLs []string) error {
+	var failedURLs []string
+
 	for _, shortURL := range shortURLs {
-		ds.AddDeleteTask(userID, shortURL)
+		if err := ds.AddDeleteTask(userID, shortURL); err != nil {
+			failedURLs = append(failedURLs, shortURL)
+		}
 	}
+
+	if len(failedURLs) > 0 {
+		logger.Sugar.Warnw("Some delete tasks were rejected",
+			"userID", userID,
+			"failedCount", len(failedURLs),
+			"totalCount", len(shortURLs))
+		return ErrPartialDeleteFailure
+	}
+
+	return nil
 }
 
 func (ds *DeleteService) Stop() {
 	logger.Sugar.Info("Stopping delete service...")
-	ds.cancel()
+	if ds.cancel != nil {
+		ds.cancel()
+	}
 	ds.wg.Wait()
 	logger.Sugar.Info("Delete service stopped")
 }

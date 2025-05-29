@@ -36,14 +36,7 @@ func (p *PostgresStorage) SaveBatch(pairs []models.URLPair) ([]models.URLPair, e
 		return nil, fmt.Errorf("failed to start transaction: %w", err)
 	}
 
-	committed := false
-	defer func() {
-		if !committed {
-			if err := tx.Rollback(); err != nil {
-				logger.Sugar.Errorw("Failed to rollback transaction", "error", err)
-			}
-		}
-	}()
+	defer tx.Rollback()
 
 	stmt, err := tx.Preparex(getQuery("save-url"))
 	if err != nil {
@@ -67,7 +60,6 @@ func (p *PostgresStorage) SaveBatch(pairs []models.URLPair) ([]models.URLPair, e
 		return nil, fmt.Errorf("failed to commit transaction: %w", err)
 	}
 
-	committed = true
 	return pairs, nil
 }
 
@@ -77,14 +69,7 @@ func (p *PostgresStorage) SaveBatchWithUser(pairs []models.URLPair) ([]models.UR
 		return nil, fmt.Errorf("failed to start transaction: %w", err)
 	}
 
-	committed := false
-	defer func() {
-		if !committed {
-			if err := tx.Rollback(); err != nil {
-				logger.Sugar.Errorw("Failed to rollback transaction", "error", err)
-			}
-		}
-	}()
+	defer tx.Rollback()
 
 	stmt, err := tx.Preparex(getQuery("save-url-with-user"))
 	if err != nil {
@@ -108,7 +93,6 @@ func (p *PostgresStorage) SaveBatchWithUser(pairs []models.URLPair) ([]models.UR
 		return nil, fmt.Errorf("failed to commit transaction: %w", err)
 	}
 
-	committed = true
 	return pairs, nil
 }
 
@@ -138,14 +122,7 @@ func (p *PostgresStorage) MarkURLsAsDeleted(userID string, shortURLs []string) e
 		return fmt.Errorf("failed to start transaction: %w", err)
 	}
 
-	committed := false
-	defer func() {
-		if !committed {
-			if err := tx.Rollback(); err != nil {
-				logger.Sugar.Errorw("Failed to rollback transaction", "error", err)
-			}
-		}
-	}()
+	defer tx.Rollback()
 
 	stmt, err := tx.Preparex(getQuery("mark-url-as-deleted"))
 	if err != nil {
@@ -172,7 +149,6 @@ func (p *PostgresStorage) MarkURLsAsDeleted(userID string, shortURLs []string) e
 		return fmt.Errorf("failed to commit transaction: %w", err)
 	}
 
-	committed = true
 	return nil
 }
 

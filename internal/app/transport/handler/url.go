@@ -26,7 +26,7 @@ type URLShortener interface {
 }
 
 type DeleteService interface {
-	AddDeleteTasks(userID string, shortURLs []string)
+	AddDeleteTasks(userID string, shortURLs []string) error
 }
 
 type URLHandler struct {
@@ -303,11 +303,55 @@ func (h *URLHandler) DeleteUserURLs(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	h.deleteService.AddDeleteTasks(userID, cleanShortURLs)
+	err = h.deleteService.AddDeleteTasks(userID, cleanShortURLs)
+	if err != nil {
+		logger.Sugar.Warnw("Some delete tasks were rejected",
+			"userID", userID,
+			"error", err)
+	}
 
 	logger.Sugar.Infow("Accepted delete request",
 		"userID", userID,
 		"urlCount", len(cleanShortURLs))
 
 	w.WriteHeader(http.StatusAccepted)
+}
+
+func (h *URLHandler) GetURLStatus(w http.ResponseWriter, r *http.Request) {
+	userID := auth.GetUserIDFromContext(r.Context())
+	if userID == "" {
+		w.WriteHeader(http.StatusUnauthorized)
+		return
+	}
+
+	shortURL := chi.URLParam(r, "id")
+	if shortURL == "" {
+		http.Error(w, "URL ID is required", http.StatusBadRequest)
+		return
+	}
+
+	_, err := h.service.FetchOriginalURL(shortURL)
+
+	var status map[string]interface{}
+	if err != nil {
+		if errors.Is(err, repository.ErrURLDeleted) {
+			status = map[string]interface{}{
+				"short_url": shortURL,
+				"status":    "deleted",
+				"active":    false,
+			}
+		} else {
+			w.WriteHeader(http.StatusNotFound)
+			return
+		}
+	} else {
+		status = map[string]interface{}{
+			"short_url": shortURL,
+			"status":    "active",
+			"active":    true,
+		}
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(status)
 }
