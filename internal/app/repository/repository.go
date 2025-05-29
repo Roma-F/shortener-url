@@ -7,10 +7,15 @@ import (
 )
 
 var ErrURLConflict = errors.New("original URL already exists")
+var ErrURLDeleted = errors.New("URL has been deleted")
 
 type Repository interface {
 	Save(id string, url string) error
 	Fetch(id string) (string, error)
 	FindByURL(url string) (string, bool)
 	SaveBatch(pairs []models.URLPair) ([]models.URLPair, error)
+	SaveWithUser(id string, url string, userID string) error
+	GetUserURLs(userID string) ([]models.UserURL, error)
+	SaveBatchWithUser(pairs []models.URLPair) ([]models.URLPair, error)
+	MarkURLsAsDeleted(userID string, shortURLs []string) error
 }

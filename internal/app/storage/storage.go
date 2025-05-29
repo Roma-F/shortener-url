@@ -18,6 +18,8 @@ type URLRecord struct {
 	ID          int    `json:"id"`
 	ShortURL    string `json:"short_url"`
 	OriginalURL string `json:"original_url"`
+	UserID      string `json:"user_id"`
+	IsDeleted   bool   `json:"is_deleted"`
 }
 
 type MemoryStorage struct {
@@ -160,11 +162,52 @@ func (m *MemoryStorage) Save(shortURL string, originalURL string) error {
 		ID:          m.lastID,
 		ShortURL:    shortURL,
 		OriginalURL: originalURL,
+		UserID:      "",
 	}
 
 	m.records[shortURL] = record
 
 	return m.SaveToFile()
+}
+
+func (m *MemoryStorage) SaveWithUser(shortURL string, originalURL string, userID string) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	for _, record := range m.records {
+		if record.OriginalURL == originalURL {
+			return repository.ErrURLConflict
+		}
+	}
+
+	m.lastID++
+	record := URLRecord{
+		ID:          m.lastID,
+		ShortURL:    shortURL,
+		OriginalURL: originalURL,
+		UserID:      userID,
+	}
+
+	m.records[shortURL] = record
+
+	return m.SaveToFile()
+}
+
+func (m *MemoryStorage) GetUserURLs(userID string) ([]models.UserURL, error) {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+
+	var urls []models.UserURL
+	for _, record := range m.records {
+		if record.UserID == userID {
+			urls = append(urls, models.UserURL{
+				ShortURL:    record.ShortURL,
+				OriginalURL: record.OriginalURL,
+			})
+		}
+	}
+
+	return urls, nil
 }
 
 func (m *MemoryStorage) Fetch(shortURL string) (string, error) {
@@ -176,7 +219,27 @@ func (m *MemoryStorage) Fetch(shortURL string) (string, error) {
 		return "", errors.New("short URL not found")
 	}
 
+	if record.IsDeleted {
+		return "", repository.ErrURLDeleted
+	}
+
 	return record.OriginalURL, nil
+}
+
+func (m *MemoryStorage) MarkURLsAsDeleted(userID string, shortURLs []string) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	for _, shortURL := range shortURLs {
+		if record, exists := m.records[shortURL]; exists {
+			if record.UserID == userID {
+				record.IsDeleted = true
+				m.records[shortURL] = record
+			}
+		}
+	}
+
+	return m.SaveToFile()
 }
 
 func (m *MemoryStorage) FindByURL(originalURL string) (string, bool) {
@@ -201,6 +264,7 @@ func (m *MemoryStorage) SaveBatch(pairs []models.URLPair) ([]models.URLPair, err
 			ID:          m.lastID,
 			ShortURL:    pair.ShortURL,
 			OriginalURL: pair.OriginalURL,
+			UserID:      pair.UserID,
 		}
 
 		m.records[pair.ShortURL] = record
@@ -211,4 +275,8 @@ func (m *MemoryStorage) SaveBatch(pairs []models.URLPair) ([]models.URLPair, err
 	}
 
 	return pairs, nil
+}
+
+func (m *MemoryStorage) SaveBatchWithUser(pairs []models.URLPair) ([]models.URLPair, error) {
+	return m.SaveBatch(pairs)
 }

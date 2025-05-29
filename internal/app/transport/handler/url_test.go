@@ -16,14 +16,22 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
+type MockDeleteService struct{}
+
+func (m *MockDeleteService) AddDeleteTasks(userID string, shortURLs []string) error {
+	return nil
+}
+
 func setupHandler() *URLHandler {
 	cfg := &config.ServerOption{
 		RunAddr:      ":8080",
 		ShortURLAddr: "http://localhost:8080",
+		MaxAttempts:  10,
 	}
 	repo := storage.NewMemoryStorage("")
 	svc := service.NewURLService(repo, cfg)
-	return NewURLHandler(svc)
+	deleteService := &MockDeleteService{}
+	return NewURLHandler(svc, deleteService)
 }
 
 func TestURLHandler_ShortenURLTextPlain_Success(t *testing.T) {

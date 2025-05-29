@@ -28,8 +28,12 @@ func main() {
 
 	urlService := service.NewURLService(repo, cfg)
 	healthService := service.NewHealthService(pgStorage)
+	deleteService := service.NewDeleteService(repo)
 
-	r := router.NewRouter(urlService, healthService)
+	ctx := context.Background()
+	deleteService.Start(ctx)
+
+	r := router.NewRouter(urlService, healthService, deleteService, cfg)
 
 	gzipRouter := middleware.WithGzip(r)
 	loggerRouter := middleware.WithLogging(gzipRouter, logger.Sugar)
@@ -38,6 +42,7 @@ func main() {
 
 	defer func() {
 		logger.Sugar.Info("Server stopping...")
+		deleteService.Stop()
 
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()

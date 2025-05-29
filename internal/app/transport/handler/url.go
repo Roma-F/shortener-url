@@ -8,6 +8,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/Roma-F/shortener-url/internal/app/auth"
 	"github.com/Roma-F/shortener-url/internal/app/logger"
 	"github.com/Roma-F/shortener-url/internal/app/models"
 	"github.com/Roma-F/shortener-url/internal/app/repository"
@@ -18,15 +19,26 @@ import (
 type URLShortener interface {
 	FetchOriginalURL(id string) (string, error)
 	GenerateShortURL(originalURL string) (string, error)
+	GenerateShortURLWithUser(originalURL string, userID string) (string, error)
 	ShortenBatch(requests []models.ShortenBatchItem) ([]models.ShortenedURLItem, error)
+	ShortenBatchWithUser(requests []models.ShortenBatchItem, userID string) ([]models.ShortenedURLItem, error)
+	GetUserURLs(userID string) ([]models.UserURL, error)
+}
+
+type DeleteService interface {
+	AddDeleteTasks(userID string, shortURLs []string) error
 }
 
 type URLHandler struct {
-	service URLShortener
+	service       URLShortener
+	deleteService DeleteService
 }
 
-func NewURLHandler(svc URLShortener) *URLHandler {
-	return &URLHandler{service: svc}
+func NewURLHandler(svc URLShortener, deleteService DeleteService) *URLHandler {
+	return &URLHandler{
+		service:       svc,
+		deleteService: deleteService,
+	}
 }
 
 func (h *URLHandler) ShortenURLTextPlain(w http.ResponseWriter, r *http.Request) {
@@ -49,7 +61,15 @@ func (h *URLHandler) ShortenURLTextPlain(w http.ResponseWriter, r *http.Request)
 	}()
 
 	url := string(body)
-	shortURL, err := h.service.GenerateShortURL(url)
+	userID := auth.GetUserIDFromContext(r.Context())
+
+	var shortURL string
+	if userID != "" {
+		shortURL, err = h.service.GenerateShortURLWithUser(url, userID)
+	} else {
+		shortURL, err = h.service.GenerateShortURL(url)
+	}
+
 	if err != nil {
 		if errors.Is(err, repository.ErrURLConflict) {
 			w.Header().Set("Content-Type", "text/plain")
@@ -88,7 +108,16 @@ func (h *URLHandler) ShortenURLJSON(w http.ResponseWriter, r *http.Request) {
 		}
 	}()
 
-	shortURL, err := h.service.GenerateShortURL(req.URL)
+	userID := auth.GetUserIDFromContext(r.Context())
+
+	var shortURL string
+	var err error
+	if userID != "" {
+		shortURL, err = h.service.GenerateShortURLWithUser(req.URL, userID)
+	} else {
+		shortURL, err = h.service.GenerateShortURL(req.URL)
+	}
+
 	if err != nil {
 		if errors.Is(err, repository.ErrURLConflict) {
 			resp := models.ShortenURLResp{
@@ -132,6 +161,10 @@ func (h *URLHandler) GetMainURL(w http.ResponseWriter, r *http.Request) {
 
 	mainURL, err := h.service.FetchOriginalURL(urlID)
 	if err != nil {
+		if errors.Is(err, repository.ErrURLDeleted) {
+			w.WriteHeader(http.StatusGone)
+			return
+		}
 		w.WriteHeader(http.StatusNotFound)
 		return
 	}
@@ -164,7 +197,16 @@ func (h *URLHandler) ShortenURLBatch(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	shortenBatch, err := h.service.ShortenBatch(records)
+	userID := auth.GetUserIDFromContext(r.Context())
+
+	var shortenBatch []models.ShortenedURLItem
+	var err error
+	if userID != "" {
+		shortenBatch, err = h.service.ShortenBatchWithUser(records, userID)
+	} else {
+		shortenBatch, err = h.service.ShortenBatch(records)
+	}
+
 	if err != nil {
 		logger.Sugar.Errorw("Failed to shorten URLs batch", "error", err)
 		http.Error(w, "Failed to process batch", http.StatusInternalServerError)
@@ -181,4 +223,135 @@ func (h *URLHandler) ShortenURLBatch(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Length", strconv.Itoa(len(jsonData)))
 	w.WriteHeader(http.StatusCreated)
 	w.Write(jsonData)
+}
+
+func (h *URLHandler) GetUserURLs(w http.ResponseWriter, r *http.Request) {
+	userID := auth.GetUserIDFromContext(r.Context())
+	if userID == "" {
+		w.WriteHeader(http.StatusUnauthorized)
+		return
+	}
+
+	urls, err := h.service.GetUserURLs(userID)
+	if err != nil {
+		logger.Sugar.Errorw("Failed to get user URLs", "error", err, "userID", userID)
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+
+	if len(urls) == 0 {
+		w.WriteHeader(http.StatusNoContent)
+		return
+	}
+
+	jsonData, err := json.MarshalIndent(urls, "", "   ")
+	if err != nil {
+		http.Error(w, "Error creating JSON response: "+err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set("Content-Length", strconv.Itoa(len(jsonData)))
+	w.WriteHeader(http.StatusOK)
+	w.Write(jsonData)
+}
+
+func (h *URLHandler) DeleteUserURLs(w http.ResponseWriter, r *http.Request) {
+	userID := auth.GetUserIDFromContext(r.Context())
+	if userID == "" {
+		w.WriteHeader(http.StatusUnauthorized)
+		return
+	}
+
+	contentType := r.Header.Get("Content-Type")
+	if contentType != "" && !strings.HasPrefix(contentType, "application/json") {
+		http.Error(w, "Content-Type must be application/json", http.StatusBadRequest)
+		return
+	}
+
+	body, err := io.ReadAll(r.Body)
+	if err != nil {
+		http.Error(w, "Error reading request body", http.StatusInternalServerError)
+		return
+	}
+
+	defer func() {
+		if err := r.Body.Close(); err != nil {
+			logger.Sugar.Errorw("Failed to close request body", "error", err)
+		}
+	}()
+
+	var shortURLs models.DeleteURLsRequest
+	if err := json.Unmarshal(body, &shortURLs); err != nil {
+		logger.Sugar.Debug("cannot decode request JSON body", zap.Error(err))
+		http.Error(w, "Invalid JSON payload", http.StatusBadRequest)
+		return
+	}
+
+	if len(shortURLs) == 0 {
+		http.Error(w, "Empty URL list", http.StatusBadRequest)
+		return
+	}
+
+	cleanShortURLs := make([]string, len(shortURLs))
+	for i, url := range shortURLs {
+		if strings.Contains(url, "/") {
+			parts := strings.Split(url, "/")
+			cleanShortURLs[i] = parts[len(parts)-1]
+		} else {
+			cleanShortURLs[i] = url
+		}
+	}
+
+	err = h.deleteService.AddDeleteTasks(userID, cleanShortURLs)
+	if err != nil {
+		logger.Sugar.Warnw("Some delete tasks were rejected",
+			"userID", userID,
+			"error", err)
+	}
+
+	logger.Sugar.Infow("Accepted delete request",
+		"userID", userID,
+		"urlCount", len(cleanShortURLs))
+
+	w.WriteHeader(http.StatusAccepted)
+}
+
+func (h *URLHandler) GetURLStatus(w http.ResponseWriter, r *http.Request) {
+	userID := auth.GetUserIDFromContext(r.Context())
+	if userID == "" {
+		w.WriteHeader(http.StatusUnauthorized)
+		return
+	}
+
+	shortURL := chi.URLParam(r, "id")
+	if shortURL == "" {
+		http.Error(w, "URL ID is required", http.StatusBadRequest)
+		return
+	}
+
+	_, err := h.service.FetchOriginalURL(shortURL)
+
+	var status map[string]interface{}
+	if err != nil {
+		if errors.Is(err, repository.ErrURLDeleted) {
+			status = map[string]interface{}{
+				"short_url": shortURL,
+				"status":    "deleted",
+				"active":    false,
+			}
+		} else {
+			w.WriteHeader(http.StatusNotFound)
+			return
+		}
+	} else {
+		status = map[string]interface{}{
+			"short_url": shortURL,
+			"status":    "active",
+			"active":    true,
+		}
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(status)
 }

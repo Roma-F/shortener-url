@@ -14,6 +14,7 @@ const (
 	defaultFileStoragePath = "storage.json"
 	defaultMigrationsPath  = "migrations"
 	defaultMigrationsTable = "migrations"
+	defaultAuthSecretKey   = "test123"
 )
 
 type ServerOption struct {
@@ -26,6 +27,7 @@ type ServerOption struct {
 	MigrationsPath  string
 	MigrationsTable string
 	ApplyMigrations bool
+	AuthSecretKey   string
 }
 
 func (o *ServerOption) String() string {
@@ -39,8 +41,8 @@ func (o *ServerOption) String() string {
 			"  Database DSN: %s\n"+
 			"  Migrations Path: %s\n"+
 			"  Migrations Table: %s\n"+
-			"  Apply Migrations: %t",
-		o.RunAddr,
+			"  Apply Migrations: %t\n"+
+			o.RunAddr,
 		o.ShortURLAddr,
 		o.FSPath,
 		o.MaxAttempts,
@@ -63,6 +65,7 @@ type EnvConfig struct {
 	MigrationsPath  string `env:"MIGRATIONS_PATH" envDefault:"migrations"`
 	MigrationsTable string `env:"MIGRATIONS_TABLE" envDefault:"migrations"`
 	ApplyMigrations bool   `env:"APPLY_MIGRATIONS" envDefault:"true"`
+	AuthSecretKey   string `env:"AUTH_SECRET_KEY" envDefault:"test123"`
 }
 
 type flagConfig struct {
@@ -75,6 +78,7 @@ type flagConfig struct {
 	migrationsPath  string
 	migrationsTable string
 	applyMigrations bool
+	authSecretKey   string
 }
 
 func parseFlags() flagConfig {
@@ -94,6 +98,8 @@ func parseFlags() flagConfig {
 	flag.StringVar(&fc.migrationsPath, "migrations-path", defaultMigrationsPath, "path to migrations directory")
 	flag.StringVar(&fc.migrationsTable, "migrations-table", defaultMigrationsTable, "name of migrations table")
 	flag.BoolVar(&fc.applyMigrations, "apply-migrations", true, "automatically apply migrations on startup")
+
+	flag.StringVar(&fc.authSecretKey, "auth-secret", defaultAuthSecretKey, "secret key for authentication")
 
 	flag.Parse()
 	return fc
@@ -166,6 +172,11 @@ func NewServerOption() (*ServerOption, error) {
 		applyMigrations = false
 	}
 
+	authSecretKey := fc.authSecretKey
+	if ec.AuthSecretKey != "" {
+		authSecretKey = ec.AuthSecretKey
+	}
+
 	opts := &ServerOption{
 		RunAddr:         runAddr,
 		ShortURLAddr:    baseURL,
@@ -176,6 +187,7 @@ func NewServerOption() (*ServerOption, error) {
 		MigrationsPath:  migrationsPath,
 		MigrationsTable: migrationsTable,
 		ApplyMigrations: applyMigrations,
+		AuthSecretKey:   authSecretKey,
 	}
 
 	return opts, nil
